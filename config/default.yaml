@@ -1,0 +1,175 @@
+# All knobs live here. CLI flags override individual values.
+
+paths:
+  raw_dir: data/raw
+  interim_dir: data/interim
+  output_dir: data/output
+  reference_dir: reference
+
+  # Stage outputs
+  collected_json: data/raw/collected.json     # S1: boundedArticles raw
+  filtered_json: data/interim/filtered.json   # S2: post Seoul+dedupe
+  enriched_json: data/interim/enriched.json   # S3: post VWorld+building+development
+  simulated_json: data/interim/simulated.json # S4: + 호텔 개발 시뮬레이션 컬럼
+  final_json: data/output/final.json          # S6
+  final_xlsx: data/output/final.xlsx          # S6
+
+
+  # Checkpoint state
+  checkpoint: .pipeline_state.json
+
+logging:
+  level: INFO
+
+# ── S1: collect (fin.land /article/boundedArticles) ────────────────────
+collect:
+  headless: true
+  page_size: 30
+  pace_sec: 0.4
+  trade_types: ["A1"]                                # A1=매매
+  real_estate_types: ["D03", "D04"]                  # D03=빌딩, D04=상가건물
+
+  # 자동 4분할 파라미터:
+  #  - 각 seed bbox에 대해 boundedArticlesCount로 매물 수 체크
+  #  - count > max_per_tile 면 4분할 재귀 (서울 전체 → 강남구 → 역삼동 → ...)
+  #  - 한 변이 min_tile_deg(약 500m) 이하가 되면 더 안 쪼갬
+  auto_split: true
+  max_per_tile: 500        # 넓은 영역은 응답 건수가 실제보다 적게 잘리는 경우가 있어
+                           # 작게 쪼개 조회 (count 호출 수는 늘어남)
+  min_tile_deg: 0.005      # 약 500m, 재귀 floor
+  max_depth: 8
+
+  # 서울 전체를 덮는 단일 큰 bbox (auto_split이 알아서 잘게 쪼갬)
+  seed_bboxes:
+    - {left: 126.760, right: 127.180, top: 37.700, bottom: 37.430}
+
+  # 좁은 영역만 빠르게 테스트하고 싶으면 위를 주석 처리하고:
+  # seed_bboxes:
+  #   - {left: 126.94, right: 126.96, top: 37.57, bottom: 37.55}  # 마포 일부
+
+# ── S2: Seoul filter ───────────────────────────────────────────────────
+seoul_filter:
+  required_si: 서울시          # fin.land returns "서울시" (not "서울특별시")
+  excluded_gu:
+    - 도봉구
+    - 노원구
+    - 강북구
+    - 은평구
+    - 중랑구
+    - 금천구
+    - 강동구
+    - 강서구
+
+# ── S3: enrich (VWorld + fin.land buildingRegistration + development) ──
+enrich:
+  headless: true
+  pace_sec: 0.4
+  fetch_agent: false           # 중개사 정보는 수집하지 않음 (개인정보, 시뮬에 불필요)
+  fetch_development: true      # /development 호출 (지구단위계획 + 미래 역세권)
+
+geocode:
+  timeout_sec: 5
+
+# ── S4: 호텔 개발 시뮬레이션 가정값 (등급별 모델) ──────────────────────
+# 이 섹션 값을 바꾸면 transform 규칙은 그대로 두고 결과만 바뀜.
+# `python -m naver_crawler run --from simulate` 로 빠르게 재계산 가능.
+#
+# 모델: 개발 연면적(평) → 호텔 등급 자동 분류 → 등급별 가정값 적용
+#       매출 = ADR × Occ × 365 × 객실수 + F&B
+#       수익(GOP) = 매출 × GOP 마진
+#       NOI = GOP − 운영사 fee − 재산세·보험 − FF&E reserve
+#       Cap Rate = 안정화 NOI / 총개발비 (Yield on Cost)
+# 오피스: 전용면적 × NOC × 12 − 임대면적 × 운용비 단가 × 12
+dev_simulation:
+  scenario_name: hotel_and_office
+
+  # 면적/금융 (등급 무관)
+  sqm_to_pyeong: 0.3025
+  basement_ratio: 0.60                 # 지하면적 = 대지(평) × 60%
+  incidental_rate: 0.06                # 부대비용 = (매입+공사) × 6%
+  ltv: 0.60                            # 대출 비율
+  interest_rate: 0.055                 # 연 이자율 (건설이자 · DCF 대출금리 공통)
+  loan_years: 2                        # 대출 기간
+
+  # 호텔 등급 분류 임계 (개발 연면적 평 기준)
+  grade_3_min_pyeong: 1500             # 1500평 미만 → 등급외 (호텔 부적합)
+  grade_4_min_pyeong: 3000             # 1500~3000평 → 3성급
+  grade_5_min_pyeong: 7000             # 3000~7000평 → 4성급, 이상 → 5성급
+
+  # 등급별 프로필 — 이 값들만 만지면 시나리오 변경
+  grade_3:                             # 3성급 (1500~3000평)
+    exclusive_ratio: 0.80              # 전용면적 비율
+    room_area_sqm: 20.0                # 객실면적
+    adr_10k: 15.0                      # ADR (만원/박)
+    occupancy: 0.87
+    fnb_ratio: 0.10                    # F&B = 객실매출의 10%
+    gop_ratio: 0.50                    # GOP 마진
+    construction_cost_per_pyeong_M: 12.0  # 평당 1,200만원
+
+  grade_4:                             # 4성급 (3000~7000평)
+    exclusive_ratio: 0.70
+    room_area_sqm: 25.0
+    adr_10k: 20.0
+    occupancy: 0.85
+    fnb_ratio: 0.15
+    gop_ratio: 0.45
+    construction_cost_per_pyeong_M: 14.0   # 평당 1,400만원
+
+  grade_5:                             # 5성급 (7000평 이상)
+    exclusive_ratio: 0.50
+    room_area_sqm: 33.0
+    adr_10k: 40.0
+    occupancy: 0.80
+    fnb_ratio: 0.30
+    gop_ratio: 0.375
+    construction_cost_per_pyeong_M: 18.0   # 평당 1,800만원
+
+  # GOP → NOI 차감 (USALI 기준 — 호텔 거래 Cap Rate는 NOI 기준)
+  mgmt_fee_base: 0.02                  # 운영사 base fee (총매출 대비)
+  mgmt_fee_incentive: 0.08             # 운영사 incentive fee (GOP 대비)
+  property_tax_rate: 0.003             # 재산세+보험 (총사업비 대비, 호텔만 — 오피스는 운용비에 포함)
+  ff_e_reserve: 0.03                   # FF&E reserve (총매출 대비)
+
+  # 오피스 개발 (임대형) — ⚠️ 권역별 NOC·매각 Cap은 가정값, 시장 자료로 검토 필요
+  #   임대수입 = 연면적 × 전용률 × NOC × 12 × (1 − 공실률)
+  #   운용비용 = 임대면적(= 연면적) × 운용비 단가 × 12,   NOI = 임대수입 − 운용비용
+  office:
+    min_total_pyeong: 1000             # 개발 연면적 이 미만이면 오피스 시뮬 제외
+    exclusive_ratio: 0.50              # 전용률
+    opex_10k_per_pyeong: 3.0           # 운용비용 (만원/임대평/월)
+    construction_cost_per_pyeong_M: 11.0   # 평당 1,100만원
+    large_min_pyeong: 10000            # 대형 (연면적 ≈ 33,000㎡+)
+    mid_large_min_pyeong: 5000         # 중대형
+    mid_min_pyeong: 2000               # 중형 (그 미만 소형)
+    markets:                           # NOC(만원/전용평/월) · 공실률 · 매각 Cap(DCF용)
+      CBD: {noc_10k: 28.0, vacancy: 0.0, exit_cap: 0.045}   # 중구·종로구
+      GBD: {noc_10k: 28.0, vacancy: 0.0, exit_cap: 0.045}   # 강남구·서초구
+      YBD: {noc_10k: 24.0, vacancy: 0.0, exit_cap: 0.048}   # 영등포구·마포구
+      기타: {noc_10k: 17.0, vacancy: 0.0, exit_cap: 0.055}
+
+  # 표시 필터 (이상치 제거)
+  max_land_pyeong: 10000               # 대지 10000평 초과 → 단지/이상치로 보고 제외
+  # 토지 평당가 이상치 임계 (백만원/평)
+  #   하한 미만: 매매가/면적 데이터 오류 (예: 7000평 37억 = 평당 51만원, 또는
+  #             용산 한강로 201평 22억 = 평당 11백만 같은 의심)
+  #   상한 초과: 호실 매물 오등록 or 단위 혼동 (예: 9평 78억 = 평당 8.47억)
+  min_land_per_pyeong_M: 20.0          # 2,000만원/평 미만 제외 — 서울 현실 반영
+  max_land_per_pyeong_M: 1000.0        # 10억/평 초과 제외
+  min_bldg_per_pyeong_M: 5.0           # 현재 건물 연면적 평당 500만원 미만 → 호실·지분 매물로 보고 제외
+
+# ── 인접부지 통합개발 그룹화 ───────────────────────────────────────────
+# 같은 동(sectorName) + 같은 용도지역 + 좌표 거리 임계 이내 매물끼리 묶어서
+# 합산 대지면적 / 매매가로 가상 통합개발 매물을 만든다. 그 가상 매물도 시뮬을
+# 거쳐 호텔 등급 / Cap Rate 계산.
+grouping:
+  max_distance_m: 50                   # 50m 이내면 인접 매물로 간주 (union-find 임계)
+  max_centroid_distance_m: 50          # 그룹 중심에서 이 거리 초과 멤버는 제외 (chain 효과 방지)
+
+# ── S5: 필지 polygon (VWorld WFS) ──────────────────────────────────────
+# isShown 매물의 좌표 주변 bbox로 WFS 호출 → PNU 매칭 polygon 추출.
+# parcels_cache.json에 PNU별 캐시 → 재실행 시 새 매물만 호출.
+parcels:
+  enabled: true
+  bbox_delta_deg: 0.0003               # 약 30m 반경 bbox
+  max_workers: 6                       # WFS 동시 호출 (서버 부담 X)
+  timeout_sec: 10.0

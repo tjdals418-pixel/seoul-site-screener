@@ -1,0 +1,7 @@
+# API 서버 런타임 의존성 (Docker 배포용 — pyproject.toml 기본 의존성과 동일)
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.5
+PyYAML>=6.0
+shapely>=2.0          # 합필 인접성 (STRtree)
+numpy-financial>=1.0  # DCF IRR

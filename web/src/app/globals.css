@@ -1,0 +1,121 @@
+@import "tailwindcss";
+@import "mapbox-gl/dist/mapbox-gl.css";
+
+/*
+ * Layout: 지도가 주인공인 3단 작업 화면 — 좌 필터 레일 / 중앙 지도 / 우 매물 시트.
+ * 모바일은 지도 전폭 + 하단 시트. 톤은 지적도·도시계획도: 차가운 회청색 바탕,
+ * 잉크 네이비 텍스트, 측량 블루 포인트 하나. 숫자는 모노스페이스로 정렬.
+ */
+@theme {
+  --color-paper: #eef1f3;      /* 앱 바탕 — 청회색 */
+  --color-surface: #ffffff;    /* 패널 */
+  --color-sunken: #f5f7f8;     /* 입력/보조 영역 */
+  --color-line: #d7dde2;       /* 구분선 */
+  --color-line-strong: #b9c2ca;
+  --color-ink: #121a21;        /* 본문 */
+  --color-ink-2: #2d3943;      /* 보조 본문 */
+  --color-muted: #5d6a75;      /* 라벨 */
+  --color-faint: #6c7883;      /* 힌트 — 흰 바탕 대비 4.5:1 */
+  --color-accent: #1b5e8c;     /* 측량 블루 — 선택/주요 액션 */
+  --color-accent-soft: #e3eef6;
+  --color-good: #2e7d4f;
+  --color-good-soft: #e4f2ea;
+  --color-bad: #b23a3a;
+  --color-bad-soft: #f7e6e6;
+  --color-warn: #a86a0b;
+  --color-warn-soft: #faf0dc;
+
+  --font-sans: var(--font-plex-kr), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+
+/* 기존 인라인 스타일 호환 토큰 (--dash-*) — 새 팔레트로 매핑 */
+:root {
+  color-scheme: light;
+  --dash-bg: var(--color-paper);
+  --dash-panel: var(--color-sunken);
+  --dash-panel-strong: var(--color-surface);
+  --dash-border: var(--color-line);
+  --dash-border-strong: var(--color-line-strong);
+  --dash-text: var(--color-ink);
+  --dash-text-strong: var(--color-ink);
+  --dash-muted: var(--color-muted);
+  --dash-grad-primary: var(--color-accent);
+  --dash-grad-cap: var(--color-ink);
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-line-strong);
+}
+
+input[type="range"] {
+  accent-color: var(--color-accent);
+}
+
+/* ── Mapbox 컨트롤/팝업 ─────────────────────────────── */
+.mapboxgl-popup-content {
+  background: var(--color-surface) !important;
+  color: var(--color-ink) !important;
+  border: 1px solid var(--color-line-strong) !important;
+  border-radius: 4px !important;
+  box-shadow: 0 4px 16px rgba(18, 26, 33, 0.12) !important;
+  font-family: var(--font-sans);
+  padding: 8px 10px !important;
+}
+.mapboxgl-popup-tip {
+  border-top-color: var(--color-surface) !important;
+  border-bottom-color: var(--color-surface) !important;
+}
+.mapboxgl-ctrl-group {
+  border-radius: 4px !important;
+  box-shadow: 0 1px 4px rgba(18, 26, 33, 0.15) !important;
+}
+
+/* fly-to 직후 도착 지점 표시 */
+@keyframes mb-marker-pulse {
+  0%   { transform: scale(1);   opacity: 0.6; }
+  70%  { transform: scale(2.4); opacity: 0; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

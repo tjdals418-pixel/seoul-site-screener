@@ -1,0 +1,23 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["icn1"],
+  "services": {
+    "web": {
+      "root": "web/",
+      "framework": "nextjs"
+    },
+    "api": {
+      "root": "./",
+      "framework": "fastapi",
+      "functions": {
+        "server.py": {
+          "excludeFiles": "{web/**,tests/**,docs/**,scripts/**,.venv/**,data/raw/**,data/interim/**,data/output/**,data/snapshots/**,data/logs/**}"
+        }
+      }
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": { "service": "api" } },
+    { "source": "/(.*)", "destination": { "service": "web" } }
+  ]
+}

@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "seoul-site-screener"
+version = "2.1.0"
+description = "Seoul listing crawler + hotel/office development feasibility pipeline"
+requires-python = ">=3.12"
+# 기본 의존성 = API 서버 실행에 필요한 것만 (배포 번들을 가볍게)
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "pydantic>=2.5",
+    "PyYAML>=6.0",
+    "shapely>=2.0",
+    "numpy-financial>=1.0",
+]
+
+[project.optional-dependencies]
+# 데이터 수집 파이프라인 (로컬 전용): pip install -e ".[crawler]"
+crawler = [
+    "requests>=2.31",
+    "tqdm>=4.66",
+    "python-dotenv>=1.0",
+    "pandas>=2.1",
+    "openpyxl>=3.1",
+    "playwright>=1.40",
+]
+dev = ["pytest>=8"]
+
+[project.scripts]
+naver-crawler = "naver_crawler.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.vercel]
+# Vercel Python 런타임이 로드할 ASGI 앱 (vercel.json의 api 서비스)
+entrypoint = "server:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
