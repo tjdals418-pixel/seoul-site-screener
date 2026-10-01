@@ -605,6 +605,8 @@ class DevAssumptions:
     max_land_per_pyeong_M: float = 1000.0  # 10억/평 초과 → 호실 매물 등 오등록
     # 현재 건물 연면적 기준 평당가 하한 — 이보다 싸면 건물 전체가 아니라 호실·지분 매물로 봄
     min_bldg_per_pyeong_M: float = 5.0     # 500만원/평
+    # 상업지역 토지 평당가 하한 — 서울 핵심 구 상업지역에서 이보다 싸면 면적·호가 입력 오류로 봄
+    min_commercial_land_per_pyeong_M: float = 40.0   # 4,000만원/평
 
     # GOP → NOI 차감 항목 (USALI 기준 — 호텔 Cap Rate는 NOI 기준으로 거래됨)
     #   NOI = GOP − 운영사 base fee − incentive fee − 재산세·보험 − FF&E reserve
@@ -649,6 +651,7 @@ class DevAssumptions:
             "grade_3_min_pyeong", "grade_4_min_pyeong", "grade_5_min_pyeong",
             "max_land_pyeong",
             "min_land_per_pyeong_M", "max_land_per_pyeong_M", "min_bldg_per_pyeong_M",
+            "min_commercial_land_per_pyeong_M",
             "mgmt_fee_base", "mgmt_fee_incentive", "property_tax_rate", "ff_e_reserve",
         }
         kwargs: dict[str, Any] = {k: v for k, v in section.items() if k in flat_keys}
@@ -962,6 +965,14 @@ def apply_show_filter(article: dict, assumptions: DevAssumptions, any_use: bool 
     ):
         article["isShown"] = False
         article["shownReason"] = f"평당가 이상치 ({lpp_f:.0f} 백만/평)"
+        return article
+
+    # 상업지역인데 토지 평당가가 지나치게 낮음 → 대지면적·호가 입력 오류 (예: ㎡·평 뒤바뀜)
+    zoning = normalize_zoning(article.get("regZoning")) or ""
+    if (lpp_f is not None and "상업지역" in zoning
+            and lpp_f < assumptions.min_commercial_land_per_pyeong_M):
+        article["isShown"] = False
+        article["shownReason"] = f"상업지역 평당가 이상치 ({lpp_f:.0f} 백만/평)"
         return article
 
     # 건물 평당가가 비정상적으로 낮음 → 큰 건물의 호실·지분만 올라온 매물 (통합그룹 제외)

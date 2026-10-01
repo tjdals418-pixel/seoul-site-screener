@@ -33,13 +33,13 @@ export default function AboutModal({
         className="relative bg-surface w-full md:max-w-2xl max-h-[88vh] overflow-y-auto rounded-t-lg md:rounded-lg border border-line shadow-xl"
       >
         <div className="sticky top-0 bg-surface border-b border-line flex items-center justify-between px-5 h-12">
-          <h2 id="about-title" className="text-[15px] font-semibold">모델 설명</h2>
+          <h2 id="about-title" className="text-[16px] font-semibold">모델 설명</h2>
           <button onClick={onClose} className="p-1.5 text-muted hover:text-ink" aria-label="닫기">
             <X size={18} />
           </button>
         </div>
 
-        <div className="px-5 py-5 space-y-6 text-[13.5px] leading-relaxed text-ink-2">
+        <div className="px-5 py-5 space-y-6 text-[14.5px] leading-relaxed text-ink-2">
           <section className="space-y-2">
             <p>
               서울 핵심 17개 구에 매물로 나온 빌딩·상가를 모아, 지금 호가로 사서 허용 용적률만큼
@@ -67,7 +67,7 @@ export default function AboutModal({
                 운용비 3만원/평/월 × 12 = NOI
               </li>
               <li>
-                <b className="text-ink">취득 Cap</b> = 안정화 NOI ÷ 총사업비.
+                <b className="text-ink">취득 Cap</b>{" "}= 안정화 NOI ÷ 총사업비.
                 &lsquo;최적 용도&rsquo;는 상업·준주거·준공업 지역에서 둘 중 높은 쪽을 고릅니다.
               </li>
               <li>
@@ -78,7 +78,7 @@ export default function AboutModal({
 
           <section>
             <h3 className="text-xs font-semibold text-muted tracking-wide mb-2">권역 구분 (오피스)</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-line border border-line rounded overflow-hidden text-[12.5px]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-line border border-line rounded overflow-hidden text-[13.5px]">
               {[
                 ["CBD", "중구 · 종로구"],
                 ["GBD", "강남구 · 서초구"],
@@ -86,7 +86,7 @@ export default function AboutModal({
                 ["기타", "그 외 자치구"],
               ].map(([k, v]) => (
                 <div key={k} className="bg-surface px-3 py-2">
-                  <div className="font-mono text-[11px] text-muted">{k}</div>
+                  <div className="font-mono text-[12px] text-muted">{k}</div>
                   <div>{v}</div>
                 </div>
               ))}
@@ -113,7 +113,7 @@ export default function AboutModal({
             </ul>
           </section>
 
-          <p className="text-[12px] text-faint border-t border-line pt-4">
+          <p className="text-[13px] text-faint border-t border-line pt-4">
             개인 포트폴리오 프로젝트입니다. 네이버와 제휴하지 않았고, 투자 판단의 근거로 쓰도록
             만든 도구가 아닙니다.
           </p>

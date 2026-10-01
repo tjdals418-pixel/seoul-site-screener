@@ -271,6 +271,7 @@ class SimAssumptions(BaseModel):
     min_land_per_pyeong_M: float | None = Field(None, ge=0)
     max_land_per_pyeong_M: float | None = Field(None, gt=0)
     min_bldg_per_pyeong_M: float | None = Field(None, ge=0)
+    min_commercial_land_per_pyeong_M: float | None = Field(None, ge=0)
 
     # GOP → NOI 차감률
     mgmt_fee_base: float | None = Field(None, ge=0, le=0.2)

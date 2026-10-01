@@ -642,6 +642,12 @@ export default function Map({ filters, onSelect, selectedAid }: Props) {
     }
   }, [loaded, selectedAid, articleList]);
 
+  // 선택 해제 → 모바일 시트용으로 줬던 padding 원복
+  useEffect(() => {
+    if (!loaded || selectedAid) return;
+    mapRef.current?.easeTo({ padding: { top: 0, bottom: 0, left: 0, right: 0 }, duration: 300 });
+  }, [loaded, selectedAid]);
+
   // 3) selectedAid 변경 → fly-to. 우선 source features에서 찾고,
   //    줌아웃 상태(deep link 진입 등)면 API에서 직접 좌표 fetch.
   useEffect(() => {
@@ -725,7 +731,7 @@ export default function Map({ filters, onSelect, selectedAid }: Props) {
       <div
         className="absolute bottom-8 right-2 md:right-3 px-3 py-2.5 rounded bg-surface/95 border border-line-strong shadow-sm"
       >
-        <div className="text-[11px] text-muted font-semibold mb-1.5">
+        <div className="text-[12px] text-muted font-semibold mb-1.5">
           취득 Cap <span className="font-normal text-faint">NOI ÷ 총사업비</span>
         </div>
         {CAP_BANDS.map((b) => (
@@ -738,12 +744,12 @@ export default function Map({ filters, onSelect, selectedAid }: Props) {
                 boxShadow: "0 0 0 1px rgba(18,26,33,0.25)",
               }}
             />
-            <span className="num text-[12px] text-ink-2">{b.label}</span>
+            <span className="num text-[13px] text-ink-2">{b.label}</span>
           </div>
         ))}
         {stats && (
           <div
-            className="mt-2 pt-2 border-t border-line text-[11px] text-muted"
+            className="mt-2 pt-2 border-t border-line text-[12px] text-muted"
           >
             후보 <b className="num text-ink">{stats.articles}</b>건 · 합필{" "}
             <b className="num text-ink">{stats.groups}</b>

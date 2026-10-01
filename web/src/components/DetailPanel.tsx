@@ -85,22 +85,22 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
       {/* 헤더 — 용도·등급 라벨 + 이름 + 북마크 */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted mb-1">
+          <div className="flex items-center gap-1.5 text-[12px] font-medium text-muted mb-1">
             <span className="w-2 h-2 rounded-full" style={{ background: gradeColor }} />
             {isOffice ? "오피스" : "호텔"} · {grade}
             {isGroup && <span className="text-accent">· 합필 {a.groupSize ?? "?"}필지</span>}
           </div>
-          <h2 className="text-[17px] font-semibold leading-snug text-ink break-keep">
+          <h2 className="text-[18px] font-semibold leading-snug text-ink break-keep">
             {siteTitle(a)}
           </h2>
-          <div className="text-[12px] text-muted mt-0.5">
+          <div className="text-[13px] text-muted mt-0.5">
             {a.divisionName ?? "—"} {a.sectorName ?? ""}
             {a.regRoadAddress && <span className="text-faint"> · {a.regRoadAddress}</span>}
           </div>
         </div>
         <button
           onClick={() => toggle(a.articleNo)}
-          className={`flex-shrink-0 inline-flex items-center gap-1 h-8 px-2.5 rounded border text-[12px] transition-colors ${
+          className={`flex-shrink-0 inline-flex items-center gap-1 h-8 px-2.5 rounded border text-[13px] transition-colors ${
             bookmarked
               ? "border-warn/40 bg-warn-soft text-warn"
               : "border-line text-muted hover:text-ink hover:border-line-strong"
@@ -118,13 +118,13 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
         (a.outlierFlags && a.outlierFlags.length > 0)) && (
         <div className="flex flex-wrap gap-1 mb-3">
           {a.isNew && (
-            <span className="px-1.5 py-0.5 rounded text-[11px] font-semibold bg-good-soft text-good" title="이전 스냅샷 이후 새로 나온 매물">
+            <span className="px-1.5 py-0.5 rounded text-[12px] font-semibold bg-good-soft text-good" title="이전 스냅샷 이후 새로 나온 매물">
               신규
             </span>
           )}
           {a.priceChangePct != null && Math.abs(a.priceChangePct) >= 0.5 && (
             <span
-              className={`px-1.5 py-0.5 rounded text-[11px] font-semibold num ${
+              className={`px-1.5 py-0.5 rounded text-[12px] font-semibold num ${
                 a.priceChangePct > 0 ? "bg-bad-soft text-bad" : "bg-good-soft text-good"
               }`}
               title={`이전 호가 ${((a.prevDealPrice ?? 0) / 10000).toFixed(1)}억`}
@@ -142,7 +142,7 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
           <div className="flex items-end justify-between gap-3">
             <div>
               <div
-                className="text-[11px] text-muted"
+                className="text-[12px] text-muted"
                 title="안정화 NOI ÷ 총사업비. 호텔 NOI = GOP − 운영사 수수료 − FF&E − 재산세, 오피스 NOI = 전용면적 × NOC × 12 − 임대면적 × 운용비 × 12"
               >
                 취득 Cap <span className="text-faint">(NOI ÷ 총사업비)</span>
@@ -152,7 +152,7 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
                 <span className="text-[18px] text-muted ml-0.5">%</span>
               </div>
             </div>
-            <div className="text-right text-[12px] text-muted leading-relaxed">
+            <div className="text-right text-[13px] text-muted leading-relaxed">
               {isOffice ? (
                 <>{a.officeMarket ?? "—"} 권역<br />임대 {Math.round(a.officeLeasablePyeong ?? 0).toLocaleString()}평</>
               ) : (
@@ -174,7 +174,7 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
       </dl>
 
       {a.regZoning && (
-        <div className="flex items-center gap-2 text-[12px] text-ink-2 mb-4">
+        <div className="flex items-center gap-2 text-[13px] text-ink-2 mb-4">
           <ZoningSwatch zoning={a.regZoning} />
           <span>{a.regZoning}</span>
           <span className="text-faint">·</span>
@@ -209,7 +209,7 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
             const v = (val as number) ?? 0;
             const pct = a.costTotalM ? (v / a.costTotalM) * 100 : 0;
             return (
-              <div key={label as string} className="flex justify-between py-0.5 text-[13px]">
+              <div key={label as string} className="flex justify-between py-0.5 text-[14px]">
                 <span className="text-muted">{label}</span>
                 <span className="text-ink-2">
                   <b>{v.toLocaleString(undefined, { maximumFractionDigits: 0 })}</b>
@@ -227,7 +227,7 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
               {Math.round(a.costTotalM).toLocaleString()} 백만
             </span>
           </div>
-          <div className="text-[12.5px] text-muted mt-1.5">
+          <div className="text-[13.5px] text-muted mt-1.5">
             연면적 평당 {(a.costPerPyeongM ?? 0).toFixed(1)} 백만/평
             {!isOffice && a.costPerRoomM != null && (
               <> · 객실당 {a.costPerRoomM.toFixed(1)} 백만/실</>
@@ -239,7 +239,7 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
       {/* 운영/수익 — 오피스 */}
       {isOffice && a.officeRevenueAnnualM != null && (
         <Expander title="임대 / 수익 (연간, 안정화)" defaultOpen={false}>
-          <div className="text-[12.5px] text-ink-2 space-y-1">
+          <div className="text-[13.5px] text-ink-2 space-y-1">
             <Row label="권역 · NOC" val={`${a.officeMarket} · ${a.officeNoc10k}만원/전용평/월`} />
             <Row label="전용면적" val={`${Math.round(a.officeExclusivePyeong ?? 0).toLocaleString()}평`} />
             <Row label="임대면적 (= 연면적)" val={`${Math.round(a.officeLeasablePyeong ?? 0).toLocaleString()}평`} />
@@ -247,7 +247,7 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
               <Row label="공실률" val={`${Math.round((a.officeVacancy ?? 0) * 100)}%`} />
             )}
           </div>
-          <div className="mt-2 pt-2 border-t border-line text-[12.5px] space-y-1">
+          <div className="mt-2 pt-2 border-t border-line text-[13.5px] space-y-1">
             <Row label="임대수입 (전용 × NOC × 12)" val={`${((a.officeRevenueAnnualM ?? 0) / 100).toFixed(1)}억`} />
             <Row label="운용비용 (임대면적 × 단가 × 12)" val={`−${((a.officeOpexAnnualM ?? 0) / 100).toFixed(1)}억`} />
             <Row
@@ -262,11 +262,11 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
       {/* 운영/수익 — 호텔 */}
       {!isOffice && a.gopAnnualM && (
         <Expander title="운영 / 수익 (연간)" defaultOpen={false}>
-          <div className="text-[13px] text-ink-2 space-y-0.5">
+          <div className="text-[14px] text-ink-2 space-y-0.5">
             <div>
               ADR: <b>{a.adr10k} 만원/박</b>
               {a.adrTier && (
-                <span className="text-muted text-[12px] ml-1">
+                <span className="text-muted text-[13px] ml-1">
                   (Tier {a.adrTier} · {Math.round((a.adrMultiplier ?? 1) * 100)}% of{" "}
                   {a.adrBase10k}만)
                 </span>
@@ -279,7 +279,7 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
             </div>
           </div>
           <div
-            className="mt-2 pt-2 text-[13.5px] space-y-0.5"
+            className="mt-2 pt-2 text-[14.5px] space-y-0.5"
             style={{ borderTop: "1px solid var(--dash-border)" }}
           >
             <Row label="객실 매출/년" val={`${((a.roomRevenueAnnualM ?? 0) / 100).toFixed(1)} 억`} />
@@ -290,7 +290,7 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
               val={`${((a.noiAnnualM ?? 0) / 100).toFixed(1)} 억`}
               valClass="text-good font-semibold"
             />
-            <div className="text-[11px] text-muted pt-1">
+            <div className="text-[12px] text-muted pt-1">
               NOI = GOP − 운영사 fee(매출 2% + GOP 8%) − FF&E(매출 3%) − 재산세·보험
             </div>
           </div>
@@ -322,12 +322,12 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
       {(a.devJiguPrimaryName || a.devNearestRailStation) && (
         <Expander title="도시계획 / 미래 호재" defaultOpen={false}>
           {a.devJiguPrimaryName && (
-            <div className="text-[13px] text-ink-2 mb-1">
+            <div className="text-[14px] text-ink-2 mb-1">
               <b>지구단위계획</b>: {a.devJiguPrimaryName}
             </div>
           )}
           {a.devNearestRailStation && (
-            <div className="text-[13px] text-ink-2">
+            <div className="text-[14px] text-ink-2">
               <b>{a.devNearestRailStation}</b> ({a.devNearestRailLine ?? ""}) ·{" "}
               {a.devNearestRailDistanceM ? `${Math.round(a.devNearestRailDistanceM)}m` : "—"} · 도보{" "}
               {a.devNearestRailWalkMin ? `${Math.round(a.devNearestRailWalkMin)}분` : "—"}
@@ -346,7 +346,7 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
             href={`https://fin.land.naver.com/articles/${a.articleNo}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="col-span-2 inline-flex items-center justify-center gap-1.5 h-9 rounded bg-accent text-surface text-[13px] font-medium hover:bg-accent/90"
+            className="col-span-2 inline-flex items-center justify-center gap-1.5 h-9 rounded bg-accent text-surface text-[14px] font-medium hover:bg-accent/90"
           >
             원본 매물 보기 (네이버부동산) <ExternalLink size={13} />
           </a>
@@ -358,7 +358,7 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
             )},${a.latitude},${a.longitude}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-1.5 h-9 rounded border border-line text-[13px] text-ink-2 hover:border-line-strong"
+            className="inline-flex items-center justify-center gap-1.5 h-9 rounded border border-line text-[14px] text-ink-2 hover:border-line-strong"
           >
             카카오맵 <ExternalLink size={13} />
           </a>
@@ -366,7 +366,7 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
         {a.regRoadAddress && <DiscoButton address={a.regRoadAddress} />}
         <button
           onClick={() => downloadArticleCSV(a)}
-          className="inline-flex items-center justify-center gap-1.5 h-9 rounded border border-line text-[13px] text-ink-2 hover:border-line-strong"
+          className="inline-flex items-center justify-center gap-1.5 h-9 rounded border border-line text-[14px] text-ink-2 hover:border-line-strong"
           title="이 부지의 시뮬 결과를 Excel에서 열 수 있는 CSV로 저장"
         >
           <Download size={13} /> CSV
@@ -395,7 +395,7 @@ function DiscoButton({ address }: { address: string }) {
   return (
     <button
       onClick={handleClick}
-      className="inline-flex items-center justify-center gap-1.5 h-9 rounded border border-line text-[13px] text-ink-2 hover:border-line-strong"
+      className="inline-flex items-center justify-center gap-1.5 h-9 rounded border border-line text-[14px] text-ink-2 hover:border-line-strong"
       title="주소를 복사하고 디스코를 엽니다 — 검색창에 붙여넣기"
     >
       {copied ? "주소 복사됨" : <>디스코 <ExternalLink size={13} /></>}
@@ -434,7 +434,7 @@ function BookmarkNoteEditor({
             <button
               key={t}
               onClick={() => setTag(active ? "" : t)}
-              className="text-[11px] px-1.5 py-0.5 rounded transition"
+              className="text-[12px] px-1.5 py-0.5 rounded transition"
               style={{
                 background: active ? "var(--dash-grad-primary)" : "var(--color-sunken)",
                 color: active ? "var(--color-surface)" : "var(--color-muted)",
@@ -450,7 +450,7 @@ function BookmarkNoteEditor({
         value={note}
         onChange={(e) => setNote(e.target.value)}
         placeholder="메모 (자동 저장)"
-        className="w-full px-2 py-1 rounded text-[12.5px] text-ink-2 outline-none resize-none"
+        className="w-full px-2 py-1 rounded text-[13.5px] text-ink-2 outline-none resize-none"
         style={{
           background: "var(--color-sunken)",
           border: "1px solid var(--dash-border)",
@@ -521,15 +521,15 @@ function FeasibilitySection({
       <button
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between h-10 text-[13px] font-medium text-ink hover:text-accent"
+        className="w-full flex items-center justify-between h-10 text-[14px] font-medium text-ink hover:text-accent"
       >
         <span>사업성 DCF <span className="text-muted font-normal">IRR · NPV · 회수기간</span></span>
         <ChevronDown size={15} className={`text-muted transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
         <div className="pb-3">
-          <div className="text-[11px] text-muted mb-2 leading-relaxed">
-            기본 {assumptions.hold_years ?? 5}년 보유 (공사{" "}
+          <div className="text-[12px] text-muted mb-2 leading-relaxed">
+            {assumptions.hold_years ?? 5}년 보유 (공사{" "}
             {result?.construction_years_used ?? assumptions.construction_years ?? 2}년 +{" "}
             {isOffice ? "임대 안정화" : "운영 안정화"}{" "}
             {(assumptions.hold_years ?? 5) - (result?.construction_years_used ?? assumptions.construction_years ?? 2)}년)
@@ -543,12 +543,12 @@ function FeasibilitySection({
           </div>
 
           {loading && (
-            <div className="text-[12px] text-muted">계산 중...</div>
+            <div className="text-[13px] text-muted">계산 중...</div>
           )}
 
           {errorMsg && !loading && (
             <div
-              className="text-[12px] text-warn px-2 py-2 rounded leading-relaxed"
+              className="text-[13px] text-warn px-2 py-2 rounded leading-relaxed"
               style={{ background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-soft)" }}
             >
               {errorMsg}
@@ -594,7 +594,7 @@ function FeasibilitySection({
               </div>
 
               {/* YoC + Exit value */}
-              <div className="flex justify-between gap-2 text-[12px] text-muted mb-1">
+              <div className="flex justify-between gap-2 text-[13px] text-muted mb-1">
                 <div>
                   <span className="text-muted">YoC(안정화):</span>{" "}
                   <b className="text-ink-2">{fmtPct(result.yoc_year3)}</b>
@@ -606,14 +606,14 @@ function FeasibilitySection({
               </div>
 
               {/* Entry → Exit cap compression/expansion */}
-              <div className="flex items-center gap-1.5 text-[12px] text-muted mb-2">
+              <div className="flex items-center gap-1.5 text-[13px] text-muted mb-2">
                 <span className="text-muted">Cap:</span>
                 <b className="text-ink-2">{fmtCap(result.entry_cap)}</b>
                 <span className="text-faint">→</span>
                 <b className="text-ink-2">{fmtCap(result.exit_cap_used)}</b>
                 {result.entry_cap != null && result.exit_cap_used != null && (
                   <span
-                    className="text-[10.5px] px-1 rounded"
+                    className="text-[12px] px-1 rounded"
                     style={{
                       background:
                         result.exit_cap_used > result.entry_cap
@@ -631,7 +631,7 @@ function FeasibilitySection({
 
               {/* 가정값 조정 */}
               <details className="mt-2">
-                <summary className="cursor-pointer text-[12px] text-muted hover:text-ink">
+                <summary className="cursor-pointer text-[13px] text-muted hover:text-ink">
                   DCF 가정값 조정
                 </summary>
                 <div className="mt-1.5 space-y-1 px-1">
@@ -727,7 +727,7 @@ function FeasibilitySection({
 
               {/* 노트 */}
               {result.notes.length > 0 && (
-                <div className="mt-2 text-[11px] text-muted space-y-0.5">
+                <div className="mt-2 text-[12px] text-muted space-y-0.5">
                   {result.notes.map((n, i) => (
                     <div key={i}>{n}</div>
                   ))}
@@ -736,7 +736,7 @@ function FeasibilitySection({
 
               {/* cash flow chart (간단 bar) */}
               <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--dash-border)" }}>
-                <div className="text-[11px] text-muted mb-1">
+                <div className="text-[12px] text-muted mb-1">
                   연도별 unlevered cash flow (백만원)
                 </div>
                 <CashFlowBars flows={result.cash_flows_M} />
@@ -765,8 +765,8 @@ function DCFKpi({
   const tone = bad ? "text-bad" : good ? "text-good" : "text-ink";
   return (
     <div className="min-w-0" title={tip}>
-      <div className="text-[11px] text-muted">{label}</div>
-      <div className={`num text-[15px] mt-0.5 ${tone}`}>{val}</div>
+      <div className="text-[12px] text-muted">{label}</div>
+      <div className={`num text-[16px] mt-0.5 ${tone}`}>{val}</div>
     </div>
   );
 }
@@ -793,7 +793,7 @@ function AssumeNum({
   onChange: (v: number) => void;
 }) {
   return (
-    <div className="flex items-center justify-between text-[12px]">
+    <div className="flex items-center justify-between text-[13px]">
       <span className="text-muted truncate mr-2">{label}</span>
       <div className="flex items-center gap-1">
         <input
@@ -808,10 +808,10 @@ function AssumeNum({
             const v = raw / suffixMultiplier;
             onChange(Math.min(max, Math.max(min, v)));
           }}
-          className="w-16 text-right bg-transparent border rounded px-1 py-0.5 text-ink-2 text-[12px]"
+          className="w-16 text-right bg-transparent border rounded px-1 py-0.5 text-ink-2 text-[13px]"
           style={{ borderColor: "var(--dash-border)" }}
         />
-        {suffix && <span className="text-muted w-2 text-[11px]">{suffix}</span>}
+        {suffix && <span className="text-muted w-2 text-[12px]">{suffix}</span>}
       </div>
     </div>
   );
@@ -838,7 +838,7 @@ function CashFlowBars({ flows }: { flows: number[] }) {
                 opacity: 0.85,
               }}
             />
-            <div className="text-[10px] text-faint mt-0.5">{i}</div>
+            <div className="text-[12px] text-faint mt-0.5">{i}</div>
           </div>
         );
       })}
@@ -852,7 +852,7 @@ function Landmarks({ article }: { article: Article }) {
   const list = nearestLandmarks(article.latitude, article.longitude, 5);
   return (
     <Expander title="주요 랜드마크 거리" defaultOpen={false}>
-      <div className="text-[13px] space-y-0.5">
+      <div className="text-[14px] space-y-0.5">
         {list.map((lm) => {
           const km = lm.distanceM / 1000;
           const distLabel = km >= 1 ? `${km.toFixed(1)}km` : `${Math.round(lm.distanceM)}m`;
@@ -866,7 +866,7 @@ function Landmarks({ article }: { article: Article }) {
               <span className="text-ink-2 text-right">
                 <b>{distLabel}</b>
                 {walkable && (
-                  <span className="text-muted text-[11px] ml-1">
+                  <span className="text-muted text-[12px] ml-1">
                     · 도보 {lm.walkMin}분
                   </span>
                 )}
@@ -903,12 +903,12 @@ function Overview() {
   return (
     <div className="space-y-5">
       <div>
-        <div className="text-[11px] text-muted mb-1">현재 조건</div>
-        <h2 className="text-[17px] font-semibold leading-snug">
+        <div className="text-[12px] text-muted mb-1">현재 조건</div>
+        <h2 className="text-[18px] font-semibold leading-snug">
           개발 후보 <span className="num">{cands.length}</span>곳
         </h2>
         {use === "best" && (
-          <p className="text-[12px] text-muted mt-0.5">
+          <p className="text-[13px] text-muted mt-0.5">
             호텔이 유리한 곳 <span className="num text-ink-2">{byUse.hotel}</span> · 오피스가 유리한 곳{" "}
             <span className="num text-ink-2">{byUse.office}</span>
           </p>
@@ -922,10 +922,10 @@ function Overview() {
           ["중앙값", median != null ? (median * 100).toFixed(2) : "—", "%"],
         ].map(([label, v, unit]) => (
           <div key={String(label)} className="py-3 px-2 first:pl-0">
-            <dt className="text-[11px] text-muted">취득 Cap {label}</dt>
+            <dt className="text-[12px] text-muted">취득 Cap {label}</dt>
             <dd className="num text-[20px] text-ink mt-0.5">
               {v}
-              <span className="text-[12px] text-muted ml-0.5">{unit}</span>
+              <span className="text-[13px] text-muted ml-0.5">{unit}</span>
             </dd>
           </div>
         ))}
@@ -933,10 +933,10 @@ function Overview() {
 
       {topGu.length > 0 && (
         <div>
-          <div className="text-[11px] text-muted mb-1.5">5% 이상 부지가 많은 구</div>
+          <div className="text-[12px] text-muted mb-1.5">5% 이상 부지가 많은 구</div>
           <ol className="space-y-1">
             {topGu.map(([name, n]) => (
-              <li key={name} className="flex justify-between text-[13px]">
+              <li key={name} className="flex justify-between text-[14px]">
                 <span>{name}</span>
                 <span className="num text-muted">{n}곳</span>
               </li>
@@ -945,7 +945,7 @@ function Overview() {
         </div>
       )}
 
-      <div className="text-[12.5px] leading-relaxed text-ink-2 bg-sunken border border-line rounded p-3 space-y-1.5">
+      <div className="text-[13.5px] leading-relaxed text-ink-2 bg-sunken border border-line rounded p-3 space-y-1.5">
         <p className="font-medium text-ink">이렇게 보세요</p>
         <p>왼쪽 순위나 지도에서 부지를 누르면 개발 규모, 총사업비, NOI, IRR이 여기에 나와요.</p>
         <p>
@@ -970,7 +970,7 @@ function UseComparison({ article }: { article: Article }) {
   );
   return (
     <div
-      className="mt-1.5 pt-1.5 text-[12px] flex items-center gap-2"
+      className="mt-1.5 pt-1.5 text-[13px] flex items-center gap-2"
       style={{ borderTop: "1px dashed var(--dash-border)" }}
       title="같은 부지를 호텔/오피스로 개발했을 때의 취득 Cap"
     >
@@ -979,7 +979,7 @@ function UseComparison({ article }: { article: Article }) {
       <span className="text-faint">vs</span>
       {cell("", o, !hotelWins)}
       {article.devZoneOk === false && (
-        <span className="text-[10.5px] text-bad">· 신축 불가 지역</span>
+        <span className="text-[12px] text-bad">· 신축 불가 지역</span>
       )}
     </div>
   );
@@ -1001,7 +1001,7 @@ function OutlierBadge({ flags }: { flags: string[] }) {
         return (
           <span
             key={f}
-            className="px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap"
+            className="px-2 py-0.5 rounded text-[12px] font-semibold whitespace-nowrap"
             style={{ background: bg, color }}
             title={def.tip}
           >
@@ -1034,10 +1034,9 @@ function GroupMembers({
   if (members.length === 0) return null;
 
   return (
-    <Expander title={`통합 멤버 ${members.length}필지`} defaultOpen={true}>
-      <div className="text-[12px] text-muted mb-2 leading-relaxed">
-        합필은 가상 부지라 원본 매물 링크가 없어요. 필지별 링크로 확인하세요.
-        멤버 ↗/로 개별 매물 확인.
+    <Expander title={`구성 필지 ${members.length}곳`} defaultOpen={true}>
+      <div className="text-[13px] text-muted mb-2 leading-relaxed">
+        인접한 매물을 묶은 가상 부지예요. 아래 필지별로 원본 매물을 확인할 수 있어요.
       </div>
       <div className="space-y-1">
         {members.map((m, idx) => {
@@ -1049,7 +1048,7 @@ function GroupMembers({
           return (
             <div
               key={aid || idx}
-              className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-ink/[0.04] transition text-[12.5px]"
+              className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-ink/[0.04] transition text-[13.5px]"
               style={{ background: "var(--color-sunken)" }}
             >
               <span className="text-faint w-4 text-center flex-shrink-0">
@@ -1059,7 +1058,7 @@ function GroupMembers({
                 <div className="text-ink-2 truncate">
                   {m.regRoadAddress || `매물 ${aid}`}
                 </div>
-                <div className="text-[11px] text-muted">
+                <div className="text-[12px] text-muted">
                   {land} · {price}
                 </div>
               </div>
@@ -1067,8 +1066,8 @@ function GroupMembers({
                 <>
                   <button
                     onClick={() => onNavigate?.(aid)}
-                    className="text-[12px] text-accent hover:text-accent transition flex-shrink-0"
-                    title="이 멤버 매물로 이동"
+                    className="text-[13px] text-accent hover:text-accent transition flex-shrink-0"
+                    title="이 필지로 이동"
                   >
                     ↗
                   </button>
@@ -1076,7 +1075,7 @@ function GroupMembers({
                     href={`https://fin.land.naver.com/articles/${aid}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[12px] text-muted hover:text-ink transition flex-shrink-0"
+                    className="text-[13px] text-muted hover:text-ink transition flex-shrink-0"
                     title="원본 매물 (네이버부동산)"
                     aria-label="원본 매물 (네이버부동산)"
                     onClick={(e) => e.stopPropagation()}
@@ -1177,7 +1176,7 @@ function BuildingStatus({ article }: { article: Article }) {
 
   return (
     <Expander title="현재 건물 현황" defaultOpen={false}>
-      <div className="text-[13px] space-y-0.5">
+      <div className="text-[14px] space-y-0.5">
         {rows.map(([k, v]) => (
           <div key={k} className="flex justify-between py-0.5 gap-2">
             <span className="text-muted flex-shrink-0">{k}</span>
@@ -1232,10 +1231,10 @@ function MemberStub({
           border: "1px solid var(--color-accent-soft)",
         }}
       >
-        <div className="text-[12.5px] text-accent mb-1">
+        <div className="text-[13.5px] text-accent mb-1">
           이 매물은 인접 필지와 묶였을 때 개발 규모가 나오는 부지예요
         </div>
-        <div className="text-[13px] text-ink-2">
+        <div className="text-[14px] text-ink-2">
           인근 다른 매물과 묶어{" "}
           <b style={{ color: gradeColor }}>
             {parent?.groupSize ?? "?"}필지 {grade}
@@ -1245,14 +1244,14 @@ function MemberStub({
       </div>
 
       {/* 멤버 단독 정보 (작게) */}
-      <div className="text-[13px] text-muted mb-3 space-y-0.5">
+      <div className="text-[14px] text-muted mb-3 space-y-0.5">
         <div>
           <b className="text-ink-2">{a.name || "(이름없음)"}</b>
         </div>
         {a.regRoadAddress && (
-          <div className="text-[12px] text-muted">{a.regRoadAddress}</div>
+          <div className="text-[13px] text-muted">{a.regRoadAddress}</div>
         )}
-        <div className="pt-2 grid grid-cols-2 gap-1 text-[12.5px]">
+        <div className="pt-2 grid grid-cols-2 gap-1 text-[13.5px]">
           <div>
             <span className="text-muted">매매가</span>{" "}
             <b className="text-ink-2">
@@ -1288,7 +1287,7 @@ function MemberStub({
             href={`https://fin.land.naver.com/articles/${a.articleNo}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="col-span-2 text-center py-1.5 rounded text-ink-2 text-[13px] transition"
+            className="col-span-2 text-center py-1.5 rounded text-ink-2 text-[14px] transition"
             style={{
               border: "1px solid var(--dash-border)",
             }}
@@ -1304,8 +1303,8 @@ function MemberStub({
 function Kpi({ label, val }: { label: string; val: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[11px] text-muted">{label}</dt>
-      <dd className="num text-[15px] text-ink mt-0.5">{val}</dd>
+      <dt className="text-[12px] text-muted">{label}</dt>
+      <dd className="num text-[16px] text-ink mt-0.5">{val}</dd>
     </div>
   );
 }
@@ -1363,12 +1362,12 @@ function Expander({
       <button
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between h-10 text-[13px] font-medium text-ink hover:text-accent"
+        className="w-full flex items-center justify-between h-10 text-[14px] font-medium text-ink hover:text-accent"
       >
         <span>{title}</span>
         <ChevronDown size={15} className={`text-muted transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
-      {open && <div className="pb-3 text-[12.5px]">{children}</div>}
+      {open && <div className="pb-3 text-[13.5px]">{children}</div>}
     </div>
   );
 }

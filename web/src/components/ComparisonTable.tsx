@@ -18,6 +18,7 @@ import {
 } from "@/lib/api";
 import { useArticles } from "@/lib/articles-context";
 import { useBookmarks } from "@/lib/bookmarks";
+import { ChevronDown } from "lucide-react";
 import { capColor, siteTitle } from "@/lib/dev-class";
 import { downloadArticlesCSV } from "@/lib/export";
 
@@ -126,14 +127,14 @@ export default function ComparisonTable({ filters, onNavigate }: Props) {
     <div className="mb-4">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-2 py-2 rounded text-[13px] font-semibold text-ink-2 hover:bg-ink/[0.04] transition"
+        className="w-full flex items-center justify-between px-2 py-2 rounded text-[14px] font-semibold text-ink-2 hover:bg-ink/[0.04] transition"
         style={{
           background: "var(--dash-panel)",
           border: "1px solid var(--dash-border)",
         }}
       >
         <span>비교 테이블 ({rows.length})</span>
-        <span className="text-muted">{open ? "▾" : "▸"}</span>
+        <ChevronDown size={15} className={`text-muted transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
@@ -142,7 +143,7 @@ export default function ComparisonTable({ filters, onNavigate }: Props) {
           <div className="flex gap-1">
             <button
               onClick={() => setMode("bookmarks")}
-              className="flex-1 text-[12px] py-1 rounded transition"
+              className="flex-1 text-[13px] py-1 rounded transition"
               style={
                 mode === "bookmarks"
                   ? {
@@ -161,7 +162,7 @@ export default function ComparisonTable({ filters, onNavigate }: Props) {
             </button>
             <button
               onClick={() => setMode("filtered")}
-              className="flex-1 text-[12px] py-1 rounded transition"
+              className="flex-1 text-[13px] py-1 rounded transition"
               style={
                 mode === "filtered"
                   ? {
@@ -181,11 +182,11 @@ export default function ComparisonTable({ filters, onNavigate }: Props) {
           </div>
 
           {loading && (
-            <div className="text-[12px] text-muted px-1">로드 중...</div>
+            <div className="text-[13px] text-muted px-1">로드 중...</div>
           )}
 
           {!loading && rows.length === 0 && (
-            <div className="text-[12px] text-muted px-1 py-2 leading-relaxed">
+            <div className="text-[13px] text-muted px-1 py-2 leading-relaxed">
               {mode === "bookmarks"
                 ? "북마크한 부지가 없어요. 상세 화면의 북마크 버튼으로 추가하세요."
                 : "필터 결과 없음."}
@@ -204,7 +205,7 @@ export default function ComparisonTable({ filters, onNavigate }: Props) {
                   overflowY: "auto",
                 }}
               >
-                <table className="text-[11px] w-full">
+                <table className="text-[12px] w-full">
                   <thead
                     className="text-muted sticky top-0"
                     style={{
@@ -293,7 +294,7 @@ export default function ComparisonTable({ filters, onNavigate }: Props) {
               {/* CSV export */}
               <button
                 onClick={exportCSV}
-                className="w-full text-[12px] py-1 rounded text-muted hover:text-ink transition"
+                className="w-full text-[13px] py-1 rounded text-muted hover:text-ink transition"
                 style={{
                   background: "var(--dash-panel)",
                   border: "1px solid var(--dash-border)",
@@ -304,7 +305,7 @@ export default function ComparisonTable({ filters, onNavigate }: Props) {
               </button>
 
               {/* 통계 한 줄 */}
-              <div className="text-[10.5px] text-muted px-1 leading-relaxed">
+              <div className="text-[12px] text-muted px-1 leading-relaxed">
                 평균 Cap{" "}
                 {(() => {
                   const caps = rows
@@ -357,7 +358,7 @@ function Th({
       <span className={active ? "text-ink" : ""}>
         {children}
         {active && (
-          <span className="ml-0.5 text-[10px]">{dir === "asc" ? "▲" : "▼"}</span>
+          <span className="ml-0.5 text-[12px]">{dir === "asc" ? "▲" : "▼"}</span>
         )}
       </span>
     </th>

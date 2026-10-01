@@ -59,10 +59,10 @@ export default function Home() {
       <header className="flex-shrink-0 border-b border-line bg-surface">
         <div className="flex items-center gap-3 px-4 md:px-5 h-14">
           <div className="min-w-0">
-            <div className="font-mono text-[10px] tracking-[0.18em] text-muted leading-none">
+            <div className="font-mono text-[11px] tracking-[0.16em] font-medium text-muted leading-none">
               SEOUL SITE SCREENER
             </div>
-            <h1 className="text-[15px] md:text-base font-semibold leading-tight mt-1 truncate">
+            <h1 className="text-[16px] md:text-base font-semibold leading-tight mt-1 truncate">
               서울 개발부지 스크리너
             </h1>
           </div>
@@ -110,7 +110,7 @@ export default function Home() {
           <aside
             className={`bg-surface border-r border-line overflow-y-auto flex-shrink-0
               fixed inset-y-0 left-0 z-40 w-[88vw] max-w-sm transition-transform duration-200
-              md:static md:z-auto md:w-80 md:max-w-none md:translate-x-0
+              md:static md:z-auto md:w-[340px] md:max-w-none md:translate-x-0
               ${filtersOpen ? "translate-x-0" : "-translate-x-full"}`}
             aria-label="사업성 순위와 조건"
           >
@@ -124,12 +124,12 @@ export default function Home() {
               <Ranking onNavigate={select} selectedAid={selectedAid} />
               <Sidebar filters={filters} onChange={setFilters} use={use} meta={meta} />
               <section aria-labelledby="tools-title" className="space-y-3 pt-4 border-t border-line">
-                <h2 id="tools-title" className="text-[13px] font-semibold">도구</h2>
+                <h2 id="tools-title" className="text-[14px] font-semibold">도구</h2>
                 <SearchBookmark onNavigate={select} />
                 <ComparisonTable filters={filters} onNavigate={select} />
                 <SimForm onApply={setSim} isDefault={sim === null} />
               </section>
-              <p className="text-[11px] leading-relaxed text-faint pt-3 border-t border-line">
+              <p className="text-[12px] leading-relaxed text-faint pt-3 border-t border-line">
                 공개된 매물 호가를 바탕으로 한 개인 포트폴리오용 추정치입니다. 네이버와
                 무관하며 투자 권유가 아닙니다.
               </p>
@@ -158,7 +158,7 @@ export default function Home() {
           <aside
             className={`bg-surface border-line overflow-y-auto
               fixed inset-x-0 bottom-0 z-20 max-h-[62vh] border-t rounded-t-lg shadow-[0_-8px_24px_rgba(18,26,33,0.12)]
-              md:static md:max-h-none md:w-[380px] md:flex-shrink-0 md:border-t-0 md:border-l md:rounded-none md:shadow-none
+              md:static md:max-h-none md:w-[400px] md:flex-shrink-0 md:border-t-0 md:border-l md:rounded-none md:shadow-none
               ${selectedAid ? "block" : "hidden md:block"}`}
             aria-label="선택한 매물"
           >
@@ -205,7 +205,7 @@ function UseSwitch({
             aria-checked={active}
             onClick={() => onChange(o.key)}
             title={o.desc}
-            className={`px-3.5 h-8 rounded text-[13px] transition-colors ${full ? "flex-1" : ""} ${
+            className={`px-3.5 h-8 rounded text-[14px] transition-colors ${full ? "flex-1" : ""} ${
               active
                 ? "bg-surface text-ink font-semibold shadow-[0_1px_2px_rgba(18,26,33,0.12)] border border-line"
                 : "text-muted hover:text-ink border border-transparent"

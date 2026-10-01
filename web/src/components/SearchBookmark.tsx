@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { fetchArticle, type Article } from "@/lib/api";
-import { Search, Star } from "lucide-react";
+import { ChevronDown, Search, Star } from "lucide-react";
 import { useBookmarks } from "@/lib/bookmarks";
 import { useArticles } from "@/lib/articles-context";
 import { capColor, siteTitle } from "@/lib/dev-class";
@@ -72,7 +72,7 @@ export default function SearchBookmark({ onNavigate }: Props) {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="매물명·주소 검색"
           aria-label="매물명·주소 검색"
-          className="w-full h-9 pl-8 pr-8 rounded text-[13px] text-ink bg-surface border border-line focus:border-accent outline-none placeholder:text-faint"
+          className="w-full h-9 pl-8 pr-8 rounded text-[14px] text-ink bg-surface border border-line focus:border-accent outline-none placeholder:text-faint"
         />
         {query && (
           <button
@@ -106,10 +106,10 @@ export default function SearchBookmark({ onNavigate }: Props) {
         </div>
       )}
       {query.trim().length >= 2 && results.length === 0 && (
-        <div className="text-[12.5px] text-muted px-2 py-1.5 mb-3 leading-relaxed">
+        <div className="text-[13.5px] text-muted px-2 py-1.5 mb-3 leading-relaxed">
           &quot;{query}&quot;에 해당하는 매물 없음.
           <br />
-          <span className="text-faint text-[12px]">
+          <span className="text-faint text-[13px]">
             자치구 이름 / 동 / 도로명 / 매물명으로 검색하거나
             인근 자치구를 시도해보세요.
           </span>
@@ -119,7 +119,7 @@ export default function SearchBookmark({ onNavigate }: Props) {
       {/* 북마크 list */}
       <button
         onClick={() => setOpenBookmarks(!openBookmarks)}
-        className="w-full flex items-center justify-between px-3 h-9 rounded text-[13px] font-medium text-ink-2 hover:bg-sunken transition"
+        className="w-full flex items-center justify-between px-3 h-9 rounded text-[14px] font-medium text-ink-2 hover:bg-sunken transition"
         style={{
           background: openBookmarks ? "var(--dash-panel)" : "transparent",
           border: "1px solid var(--dash-border)",
@@ -128,12 +128,12 @@ export default function SearchBookmark({ onNavigate }: Props) {
         <span>
           북마크{" "}
           {bookmarkIds.length > 0 && (
-            <span className="ml-1 text-[12px] px-1.5 py-0.5 rounded bg-accent-soft text-accent">
+            <span className="ml-1 text-[13px] px-1.5 py-0.5 rounded bg-accent-soft text-accent">
               {bookmarkIds.length}
             </span>
           )}
         </span>
-        <span className="text-muted">{openBookmarks ? "▾" : "▸"}</span>
+        <ChevronDown size={15} className={`text-muted transition-transform ${openBookmarks ? "rotate-180" : ""}`} />
       </button>
 
       {openBookmarks && (
@@ -145,7 +145,7 @@ export default function SearchBookmark({ onNavigate }: Props) {
           }}
         >
           {bookmarks.length === 0 ? (
-            <div className="text-[12.5px] text-muted px-3 py-2">
+            <div className="text-[13.5px] text-muted px-3 py-2">
               아직 북마크한 부지가 없어요. 상세 화면에서 추가하세요.
             </div>
           ) : (
@@ -163,7 +163,7 @@ export default function SearchBookmark({ onNavigate }: Props) {
                 onClick={() => {
                   if (confirm(`북마크 ${bookmarkIds.length}개 전체 삭제?`)) clear();
                 }}
-                className="w-full py-1.5 text-[12px] text-muted hover:text-bad transition border-t"
+                className="w-full py-1.5 text-[13px] text-muted hover:text-bad transition border-t"
                 style={{ borderColor: "var(--dash-border)" }}
               >
                 전체 비우기
@@ -189,7 +189,6 @@ function ResultRow({
 }) {
   const a = article;
   const color = capColor(a.capRate);
-  const isGroup = !!a.isCombinedDevelopment;
   return (
     <div
       className="flex items-center gap-2 px-3 py-2 hover:bg-ink/[0.04] transition cursor-pointer"
@@ -200,16 +199,13 @@ function ResultRow({
         style={{ background: color }}
       />
       <div className="flex-1 min-w-0">
-        <div className="text-[13px] text-ink-2 truncate">
+        <div className="text-[14px] text-ink-2 truncate">
           {siteTitle(a)}
-          {isGroup && (
-            <span className="ml-1.5 text-[10.5px] text-accent">통합</span>
-          )}
         </div>
-        <div className="text-[11px] text-muted truncate">
+        <div className="text-[12px] text-muted truncate">
           {a.divisionName ?? ""} {a.sectorName ?? ""}
           {a.capRate != null && (
-            <span className="ml-2 text-muted">Cap {(a.capRate * 100).toFixed(1)}%</span>
+            <span className="ml-2 num text-ink-2">취득 Cap {(a.capRate * 100).toFixed(2)}%</span>
           )}
         </div>
       </div>

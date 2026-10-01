@@ -18,6 +18,8 @@ export const DEFAULT_FILTERS: FilterParams = {
 };
 
 const CAP_STEPS = [0, 0.03, 0.04, 0.05, 0.06, 0.07];
+const PRICE_MAX_OPTIONS = [10000, 20000, 30000, 50000, 100000];   // 백만원 (100억 ~ 1,000억)
+const LAND_MIN_OPTIONS = [100, 200, 300, 500];                     // 평
 
 interface Props {
   filters: FilterParams;
@@ -42,17 +44,15 @@ export default function Sidebar({ filters, onChange, use, meta }: Props) {
         .sort(([x], [y]) => x.localeCompare(y)),
     );
   const isDefault = meaningful(filters) === meaningful(DEFAULT_FILTERS);
-  const priceMax = meta?.price_max_M ?? 100000;
-  const landMax = meta?.land_max_pyeong ?? 10000;
 
   return (
     <section aria-labelledby="filters-title">
       <div className="flex items-center justify-between mb-3">
-        <h2 id="filters-title" className="text-[13px] font-semibold">조건</h2>
+        <h2 id="filters-title" className="text-[14px] font-semibold">조건</h2>
         {!isDefault && (
           <button
             onClick={() => onChange(DEFAULT_FILTERS)}
-            className="inline-flex items-center gap-1 text-[12px] text-muted hover:text-accent"
+            className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-accent"
           >
             <RotateCcw size={12} /> 초기화
           </button>
@@ -68,7 +68,7 @@ export default function Sidebar({ filters, onChange, use, meta }: Props) {
                 key={v}
                 onClick={() => set({ cap_min: v === 0 ? undefined : v })}
                 aria-pressed={active}
-                className={`num h-8 rounded text-[12px] border transition-colors ${
+                className={`num h-8 rounded text-[13px] border transition-colors ${
                   active
                     ? "bg-accent text-surface border-accent"
                     : "bg-surface border-line text-ink-2 hover:border-line-strong"
@@ -113,7 +113,7 @@ export default function Sidebar({ filters, onChange, use, meta }: Props) {
       <button
         onClick={() => setMoreOpen(!moreOpen)}
         aria-expanded={moreOpen}
-        className="w-full flex items-center justify-between py-2 text-[12.5px] text-ink-2 hover:text-accent border-t border-line"
+        className="w-full flex items-center justify-between py-2 text-[13.5px] text-ink-2 hover:text-accent border-t border-line"
       >
         상세 조건
         <ChevronDown size={15} className={`transition-transform ${moreOpen ? "rotate-180" : ""}`} />
@@ -121,31 +121,21 @@ export default function Sidebar({ filters, onChange, use, meta }: Props) {
 
       {moreOpen && (
         <div className="pt-2">
-          <Field label="매매가 (호가)">
-            <RangeInput
-              min={0}
-              max={priceMax}
-              step={Math.max(100, Math.floor(priceMax / 100))}
-              minValue={filters.price_min_M ?? 0}
-              maxValue={filters.price_max_M ?? priceMax}
-              onChange={(lo, hi) =>
-                set({ price_min_M: lo || undefined, price_max_M: hi >= priceMax ? undefined : hi })
-              }
-              format={(v) => `${Math.round(v / 100).toLocaleString()}억`}
+          <Field label="매매가 (호가) 상한">
+            <Presets
+              options={PRICE_MAX_OPTIONS}
+              value={filters.price_max_M}
+              onChange={(v) => set({ price_max_M: v })}
+              format={(v) => `${(v / 100).toLocaleString()}억 이하`}
             />
           </Field>
 
-          <Field label="대지면적">
-            <RangeInput
-              min={0}
-              max={landMax}
-              step={50}
-              minValue={filters.land_min ?? 0}
-              maxValue={filters.land_max ?? landMax}
-              onChange={(lo, hi) =>
-                set({ land_min: lo || undefined, land_max: hi >= landMax ? undefined : hi })
-              }
-              format={(v) => `${v.toLocaleString()}평`}
+          <Field label="대지면적 하한">
+            <Presets
+              options={LAND_MIN_OPTIONS}
+              value={filters.land_min}
+              onChange={(v) => set({ land_min: v })}
+              format={(v) => `${v.toLocaleString()}평 이상`}
             />
           </Field>
 
@@ -208,8 +198,8 @@ function Field({
   return (
     <div className="mb-4">
       <div className="flex items-baseline justify-between mb-1.5">
-        <span className="text-[12px] text-muted">{label}</span>
-        {hint && <span className="text-[11px] text-faint">{hint}</span>}
+        <span className="text-[13px] text-muted">{label}</span>
+        {hint && <span className="text-[12px] text-faint">{hint}</span>}
       </div>
       {children}
     </div>
@@ -229,7 +219,7 @@ function Chip({
     <button
       onClick={onClick}
       aria-pressed={active}
-      className={`h-9 md:h-7 px-2.5 rounded text-[12px] border transition-colors ${
+      className={`h-9 md:h-7 px-2.5 rounded text-[13px] border transition-colors ${
         active
           ? "bg-accent-soft border-accent/50 text-accent font-medium"
           : "bg-surface border-line text-ink-2 hover:border-line-strong"
@@ -252,7 +242,7 @@ function Check({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label htmlFor={id} className="flex items-center gap-2 text-[12.5px] text-ink-2 cursor-pointer">
+    <label htmlFor={id} className="flex items-center gap-2 text-[13.5px] text-ink-2 cursor-pointer">
       <input
         id={id}
         type="checkbox"
@@ -265,51 +255,24 @@ function Check({
   );
 }
 
-function RangeInput({
-  min,
-  max,
-  step,
-  minValue,
-  maxValue,
+/** 값 범위가 넓은 항목은 슬라이더 대신 자주 쓰는 기준을 눌러 고른다. */
+function Presets({
+  options,
+  value,
   onChange,
   format,
 }: {
-  min: number;
-  max: number;
-  step: number;
-  minValue: number;
-  maxValue: number;
-  onChange: (lo: number, hi: number) => void;
+  options: number[];
+  value: number | undefined;
+  onChange: (v: number | undefined) => void;
   format: (v: number) => string;
 }) {
   return (
-    <div className="w-full">
-      <div className="num flex justify-between text-[11.5px] text-ink-2 mb-1">
-        <span>{format(minValue)}</span>
-        <span>{maxValue >= max ? `${format(max)}+` : format(maxValue)}</span>
-      </div>
-      <div className="flex gap-2">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={minValue}
-          aria-label="최소"
-          onChange={(e) => onChange(Math.min(Number(e.target.value), maxValue), maxValue)}
-          className="w-full"
-        />
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={maxValue}
-          aria-label="최대"
-          onChange={(e) => onChange(minValue, Math.max(Number(e.target.value), minValue))}
-          className="w-full"
-        />
-      </div>
+    <div className="flex flex-wrap gap-1">
+      <Chip label="전체" active={value === undefined} onClick={() => onChange(undefined)} />
+      {options.map((o) => (
+        <Chip key={o} label={format(o)} active={value === o} onClick={() => onChange(o)} />
+      ))}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Save } from "lucide-react";
+import { ChevronDown, Save } from "lucide-react";
 import { fetchSimDefaults } from "@/lib/api";
 import { useSimHistory } from "@/lib/sim-history";
 
@@ -159,7 +159,7 @@ export default function SimForm({ onApply, isDefault }: Props) {
     <div className="mb-4">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-3 h-9 rounded text-[13px] font-medium text-ink-2 hover:bg-sunken transition"
+        className="w-full flex items-center justify-between px-3 h-9 rounded text-[14px] font-medium text-ink-2 hover:bg-sunken transition"
         style={{
           background: open ? "var(--dash-panel)" : "transparent",
           border: "1px solid var(--dash-border)",
@@ -168,12 +168,12 @@ export default function SimForm({ onApply, isDefault }: Props) {
         <span>
           시뮬 가정값{" "}
           {!isDefault && (
-            <span className="ml-1 text-[10.5px] px-1.5 py-0.5 rounded bg-accent-soft text-accent">
+            <span className="ml-1 text-[12px] px-1.5 py-0.5 rounded bg-accent-soft text-accent">
               변경됨
             </span>
           )}
         </span>
-        <span className="text-muted">{open ? "▾" : "▸"}</span>
+        <ChevronDown size={15} className={`text-muted transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
@@ -184,7 +184,7 @@ export default function SimForm({ onApply, isDefault }: Props) {
             border: "1px solid var(--dash-border)",
           }}
         >
-          <p className="text-[12.5px] text-muted leading-relaxed">
+          <p className="text-[13.5px] text-muted leading-relaxed">
             호텔 등급별 ADR·공사비, 오피스 권역별 NOC 등을 조정합니다.
             [적용]을 누르면 모든 매물의 취득 Cap이 다시 계산됩니다.
           </p>
@@ -195,20 +195,20 @@ export default function SimForm({ onApply, isDefault }: Props) {
           <div>
             <button
               onClick={() => setOpenHistory(!openHistory)}
-              className="w-full flex items-center justify-between px-2 py-1 rounded text-[12.5px] text-muted hover:bg-ink/[0.04] transition"
+              className="w-full flex items-center justify-between px-2 py-1 rounded text-[13.5px] text-muted hover:bg-ink/[0.04] transition"
             >
               <span>
                 히스토리{" "}
                 {entries.length > 0 && (
-                  <span className="ml-1 text-[10.5px] text-muted">({entries.length})</span>
+                  <span className="ml-1 text-[12px] text-muted">({entries.length})</span>
                 )}
               </span>
-              <span className="text-faint">{openHistory ? "▾" : "▸"}</span>
+              <ChevronDown size={15} className={`text-muted transition-transform ${openHistory ? "rotate-180" : ""}`} />
             </button>
             {openHistory && (
               <div className="mt-1 space-y-1 max-h-44 overflow-y-auto">
                 {entries.length === 0 ? (
-                  <div className="text-[12px] text-faint px-2 py-1.5">
+                  <div className="text-[13px] text-faint px-2 py-1.5">
                     저장된 가정값이 없어요. 저장 버튼으로 남겨두세요.
                   </div>
                 ) : (
@@ -219,7 +219,7 @@ export default function SimForm({ onApply, isDefault }: Props) {
                       return (
                         <div
                           key={e.id}
-                          className="flex items-center justify-between gap-1 px-2 py-1 rounded text-[12.5px] hover:bg-ink/[0.04] group"
+                          className="flex items-center justify-between gap-1 px-2 py-1 rounded text-[13.5px] hover:bg-ink/[0.04] group"
                           style={{ background: "var(--color-sunken)" }}
                         >
                           <button
@@ -242,7 +242,7 @@ export default function SimForm({ onApply, isDefault }: Props) {
                       onClick={() => {
                         if (confirm(`히스토리 ${entries.length}개 전체 삭제?`)) clear();
                       }}
-                      className="w-full py-1 text-[11px] text-faint hover:text-bad transition"
+                      className="w-full py-1 text-[12px] text-faint hover:text-bad transition"
                     >
                       전체 비우기
                     </button>
@@ -258,7 +258,7 @@ export default function SimForm({ onApply, isDefault }: Props) {
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className="flex-1 py-1 rounded text-[12.5px] font-semibold transition"
+                className="flex-1 py-1 rounded text-[13.5px] font-semibold transition"
                 style={
                   tab === t
                     ? { background: "var(--dash-grad-primary)", color: "var(--color-surface)" }
@@ -273,7 +273,7 @@ export default function SimForm({ onApply, isDefault }: Props) {
           {tab === "hotel" ? (
             <>
               <div>
-                <div className="text-[12px] font-semibold text-muted mb-1">
+                <div className="text-[13px] font-semibold text-muted mb-1">
                   등급 분류 임계 (개발 연면적 평)
                 </div>
                 <NumberInput label="3성급 최소" value={draft.grade_3_min_pyeong} min={500} max={5000} step={100}
@@ -375,7 +375,7 @@ function Box({ title, children }: { title: string; children: React.ReactNode }) 
         border: "1px solid var(--dash-border)",
       }}
     >
-      <div className="text-[12.5px] font-semibold text-ink-2 mb-1.5">{title}</div>
+      <div className="text-[13.5px] font-semibold text-ink-2 mb-1.5">{title}</div>
       {children}
     </div>
   );
@@ -429,7 +429,7 @@ function NumberInput({
 }) {
   const round = (v: number) => Number(v.toFixed(Math.max(decimals, 4)));
   return (
-    <div className="flex items-center justify-between py-0.5 text-[12.5px]">
+    <div className="flex items-center justify-between py-0.5 text-[13.5px]">
       <label className="text-muted mr-2 truncate">{label}</label>
       <div className="flex items-center gap-1">
         <button
@@ -450,7 +450,7 @@ function NumberInput({
             if (!Number.isFinite(v)) return;
             onChange(Math.min(max, Math.max(min, v)));
           }}
-          className="w-16 text-right bg-transparent border rounded px-1 py-0.5 text-ink-2 text-[12.5px]"
+          className="w-16 text-right bg-transparent border rounded px-1 py-0.5 text-ink-2 text-[13.5px]"
           style={{ borderColor: "var(--dash-border)" }}
           aria-label={label}
         />

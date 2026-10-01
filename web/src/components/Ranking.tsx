@@ -45,10 +45,10 @@ export default function Ranking({ onNavigate, selectedAid }: Props) {
   return (
     <section aria-labelledby="ranking-title">
       <div className="flex items-baseline justify-between mb-2">
-        <h2 id="ranking-title" className="text-[13px] font-semibold">
+        <h2 id="ranking-title" className="text-[14px] font-semibold">
           사업성 상위 부지
         </h2>
-        <span className="text-[11px] text-muted">
+        <span className="text-[12px] text-muted">
           후보 <span className="num text-ink-2">{candidates.length}</span>곳
         </span>
       </div>
@@ -59,7 +59,7 @@ export default function Ranking({ onNavigate, selectedAid }: Props) {
             key={s.key}
             aria-pressed={sortKey === s.key}
             onClick={() => { setSortKey(s.key); setShown(PAGE); }}
-            className={`h-7 px-2 rounded text-[12px] transition-colors ${
+            className={`h-7 px-2 rounded text-[13px] transition-colors ${
               sortKey === s.key ? "bg-ink text-surface" : "text-muted hover:text-ink"
             }`}
           >
@@ -69,9 +69,9 @@ export default function Ranking({ onNavigate, selectedAid }: Props) {
       </div>
 
       {loading && candidates.length === 0 ? (
-        <div className="text-[12.5px] text-muted py-6 text-center">불러오는 중…</div>
+        <div className="text-[13.5px] text-muted py-6 text-center">불러오는 중…</div>
       ) : top.length === 0 ? (
-        <div className="text-[12.5px] text-muted py-6 text-center leading-relaxed">
+        <div className="text-[13.5px] text-muted py-6 text-center leading-relaxed">
           조건에 맞는 부지가 없어요.
           <br />
           최소 취득 Cap이나 자치구 조건을 풀어보세요.
@@ -88,12 +88,12 @@ export default function Ranking({ onNavigate, selectedAid }: Props) {
                     active ? "bg-accent-soft" : "hover:bg-sunken"
                   }`}
                 >
-                  <span className="num text-[11px] text-faint text-right">{idx + 1}</span>
+                  <span className="num text-[12px] text-faint text-right">{idx + 1}</span>
                   <span className="min-w-0">
-                    <span className="block text-[13px] text-ink truncate">
+                    <span className="block text-[14px] text-ink truncate">
                       {siteTitle(a)}
                     </span>
-                    <span className="block text-[11.5px] text-muted truncate">
+                    <span className="block text-[12.5px] text-muted truncate">
                       {a.divisionName} · {a.devClass ?? "—"}
                       {a.landPyeong ? ` · 대지 ${Math.round(a.landPyeong)}평` : ""}
                       {a.dealPrice ? ` · ${Math.round(a.dealPrice / 10000).toLocaleString()}억` : ""}
@@ -105,7 +105,7 @@ export default function Ranking({ onNavigate, selectedAid }: Props) {
                       style={{ background: capColor(a.capRate) }}
                       aria-hidden="true"
                     />
-                    <span className="num text-[13px] text-ink font-medium">
+                    <span className="num text-[14px] text-ink font-medium">
                       {a.capRate != null ? `${(a.capRate * 100).toFixed(2)}%` : "—"}
                     </span>
                   </span>
@@ -119,7 +119,7 @@ export default function Ranking({ onNavigate, selectedAid }: Props) {
       {sorted.length > shown && (
         <button
           onClick={() => setShown(shown + PAGE)}
-          className="w-full mt-2 h-8 text-[12px] text-accent hover:bg-accent-soft rounded"
+          className="w-full mt-2 h-8 text-[13px] text-accent hover:bg-accent-soft rounded"
         >
           더 보기 ({sorted.length - shown}곳 남음)
         </button>

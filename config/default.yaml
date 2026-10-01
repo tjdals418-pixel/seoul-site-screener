@@ -156,6 +156,7 @@ dev_simulation:
   min_land_per_pyeong_M: 20.0          # 2,000만원/평 미만 제외 — 서울 현실 반영
   max_land_per_pyeong_M: 1000.0        # 10억/평 초과 제외
   min_bldg_per_pyeong_M: 5.0           # 현재 건물 연면적 평당 500만원 미만 → 호실·지분 매물로 보고 제외
+  min_commercial_land_per_pyeong_M: 40.0   # 상업지역 토지 평당 4,000만원 미만 → 입력 오류로 보고 제외
 
 # ── 인접부지 통합개발 그룹화 ───────────────────────────────────────────
 # 같은 동(sectorName) + 같은 용도지역 + 좌표 거리 임계 이내 매물끼리 묶어서

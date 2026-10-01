@@ -3,6 +3,7 @@
  * 라이브러리 없이 native Blob + a.download.
  */
 import type { Article } from "@/lib/api";
+import { siteTitle } from "@/lib/dev-class";
 
 const KOR_LABELS: Array<{ key: keyof Article; label: string; format?: (v: unknown) => string }> = [
   { key: "articleNo", label: "매물ID" },
@@ -96,7 +97,7 @@ export function downloadArticleCSV(article: Article): void {
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  const safe = (article.name || article.articleNo || "article")
+  const safe = (siteTitle(article) || article.articleNo || "article")
     .replace(/[\\/:*?"<>|]/g, "_")
     .slice(0, 40);
   a.href = url;
