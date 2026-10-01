@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir -r /app/api/requirements.txt
 COPY src/ /app/src/
 COPY api/ /app/api/
 COPY config/default.yaml /app/config/default.yaml
-COPY data/public/ /app/data/public/
+COPY data/published/ /app/data/published/
 COPY reference/seoul_gu.geojson /app/reference/seoul_gu.geojson
 COPY reference/seoul_subway_lines.geojson /app/reference/seoul_subway_lines.geojson
 COPY reference/seoul_subway_stations.geojson /app/reference/seoul_subway_stations.geojson

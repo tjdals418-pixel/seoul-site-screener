@@ -12,7 +12,7 @@ http://127.0.0.1:8000/docs 에서 Swagger 문서를 볼 수 있습니다.
 ## 데이터 소스
 
 1. `data/interim/simulated.json` — 로컬에서 파이프라인을 돌렸을 때
-2. `data/public/articles.json.gz` — 저장소에 포함된 공개용 데이터 (`scripts/export_public.py` 산출, 중개사 정보 제거)
+2. `data/published/articles.json.gz` — 저장소에 포함된 공개용 데이터 (`scripts/export_public.py` 산출, 중개사 정보 제거)
 
 기본 가정값은 `config/default.yaml`의 `dev_simulation` 섹션입니다.
 
@@ -20,7 +20,7 @@ http://127.0.0.1:8000/docs 에서 Swagger 문서를 볼 수 있습니다.
 
 | Method | Path | 설명 |
 |---|---|---|
-| GET | `/` | 헬스체크, 데이터 기준일, 매물 수 |
+| GET | `/` · `/api/health` | 헬스체크, 데이터 기준일, 매물 수 |
 | GET | `/api/articles?use=best` | 매물 목록 (use = best / hotel / office, 필터 query 지원) |
 | GET | `/api/articles/{id}?use=` | 매물 상세 |
 | POST | `/api/simulate` | 가정값(+ `use`)으로 전체 재계산 — 결과는 가정값별로 캐시 |

@@ -2,7 +2,7 @@
 
 Vercel **Services**(베타)로 Next.js 화면(`web/`)과 FastAPI(`server.py` → `api/app`)를
 한 프로젝트·한 도메인에 배포합니다. Hobby(무료) 플랜에서 동작하며, 배포 데이터는 저장소에
-포함된 `data/public/articles.json.gz`(중개사 정보 제거본) 하나뿐입니다.
+포함된 `data/published/articles.json.gz`(중개사 정보 제거본) 하나뿐입니다.
 
 ## 구성
 
@@ -22,8 +22,10 @@ Vercel **Services**(베타)로 Next.js 화면(`web/`)과 FastAPI(`server.py` →
    | Key | Value |
    |---|---|
    | `NEXT_PUBLIC_MAPBOX_TOKEN` | Mapbox 공개 토큰 (`pk.`로 시작) |
-5. **Deploy**. 완료 후 `https://<프로젝트>.vercel.app/api` 가 `{"status":"ok", ...}` 를
-   돌려주면 API까지 정상입니다.
+5. **Deploy**. 완료 후 `https://<프로젝트>.vercel.app/api/health` 가
+   `{"status":"ok", "raw_articles": 5000+ ...}` 를 돌려주면 API와 데이터까지 정상입니다.
+   (데이터 폴더 이름이 `public`이면 Vercel이 정적 파일로 취급해 Python 번들에서 빠집니다 —
+   그래서 `data/published/`를 씁니다.)
 6. Mapbox 계정 → Access tokens → 토큰의 URL 제한에 `https://<프로젝트>.vercel.app` 을
    추가해 두면 토큰을 다른 사이트에서 못 씁니다.
 
@@ -36,8 +38,8 @@ pip install -e ".[crawler]"                # 처음 한 번
 python -m playwright install chrome        # 처음 한 번
 python -m naver_crawler run                # 수집 ~ 필지 (수 시간 — enrich가 가장 오래 걸림)
 python scripts/snapshot.py                 # 호가 변동 비교용 스냅샷 (로컬 보관)
-python scripts/export_public.py            # data/public/articles.json.gz 갱신
-git add data/public && git commit -m "data: YYYY-MM-DD" && git push
+python scripts/export_public.py            # data/published/articles.json.gz 갱신
+git add data/published && git commit -m "data: YYYY-MM-DD" && git push
 ```
 
 push하면 Vercel이 자동으로 다시 배포합니다. `scripts/run_weekly.bat`은 실행 ~ export를

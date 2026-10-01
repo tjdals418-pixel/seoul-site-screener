@@ -1,6 +1,6 @@
 """데이터 로더 + 시뮬 재계산.
 
-매물 로드(로컬 simulated.json 또는 공개용 data/public) → DevAssumptions 적용
+매물 로드(로컬 simulated.json 또는 공개용 data/published) → DevAssumptions 적용
 (transforms.compute_dev_metrics + apply_show_filter) → 통합그룹을 실제 필지
 인접성 기준으로 재계산. 결과는 lru_cache로 메모리 캐시.
 """
@@ -27,7 +27,7 @@ from naver_crawler.transforms import (
 # 프로젝트 루트 (api/app/data.py 기준 3단계 상위)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_PATH = PROJECT_ROOT / "data" / "interim" / "simulated.json"
-PUBLIC_DATA_PATH = PROJECT_ROOT / "data" / "public" / "articles.json.gz"
+PUBLIC_DATA_PATH = PROJECT_ROOT / "data" / "published" / "articles.json.gz"
 SNAPSHOTS_DIR = PROJECT_ROOT / "data" / "snapshots"
 CONFIG_PATH = PROJECT_ROOT / "config" / "default.yaml"
 GU_GEOJSON_PATH = PROJECT_ROOT / "reference" / "seoul_gu.geojson"
@@ -55,7 +55,7 @@ def strip_private(obj: Any) -> Any:
 def _load_payload() -> dict:
     """로컬 파이프라인 산출물(simulated.json) 우선, 없으면 공개용 데이터.
 
-    공개용 데이터(`data/public/articles.json.gz`)는 scripts/export_public.py가
+    공개용 데이터(`data/published/articles.json.gz`)는 scripts/export_public.py가
     만든 PII 제거·필드 축소본이며 git에 포함된다 (배포 환경의 유일한 데이터).
     """
     if DATA_PATH.exists():

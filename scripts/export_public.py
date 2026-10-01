@@ -1,4 +1,4 @@
-"""공개 배포용 데이터 export — data/public/articles.json.gz
+"""공개 배포용 데이터 export — data/published/articles.json.gz
 
 로컬 파이프라인 산출물(data/interim/simulated.json)에서
   1) 중개사/중개업소 정보(agent*/broker*)를 재귀적으로 제거하고

@@ -157,7 +157,7 @@ def _find_article(article_id: str, key: str = "") -> dict | None:
 
 # ── routes ────────────────────────────────────────────────────────────
 @app.get("/")
-@app.get("/api")      # 배포 환경에서는 /api/* 만 이 서비스로 오므로 같은 헬스체크를 노출
+@app.get("/api/health")   # 배포 환경에서는 /api/* 만 이 서비스로 오므로 같은 헬스체크를 노출
 def root():
     raw = load_raw_articles()
     return {

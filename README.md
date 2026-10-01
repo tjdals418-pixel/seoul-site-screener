@@ -73,7 +73,7 @@ npm install
 npm run dev
 ```
 
-http://localhost:3000 에서 확인합니다. 저장소에 포함된 `data/public/articles.json.gz`로 바로 동작하며, 크롤링은 필요하지 않습니다.
+http://localhost:3000 에서 확인합니다. 저장소에 포함된 `data/published/articles.json.gz`로 바로 동작하며, 크롤링은 필요하지 않습니다.
 
 데이터를 새로 만들려면 `.env`에 VWorld API 키를 넣고 파이프라인을 실행합니다.
 

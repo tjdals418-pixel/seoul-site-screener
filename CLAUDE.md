@@ -19,7 +19,7 @@ api/app/                  FastAPI
   feasibility.py          DCF (호텔 GOP→NOI / 오피스 lease-up)
 web/src/                  Next.js 16 + Mapbox GL (web/AGENTS.md: Next 16 API는 node_modules/next/dist/docs 확인)
 config/default.yaml       모든 가정값 (API 기본값의 source)
-data/public/              배포용 데이터 (scripts/export_public.py) — git 포함
+data/published/              배포용 데이터 (scripts/export_public.py) — git 포함
 data/interim, raw, snapshots  로컬 전용 (gitignore)
 tests/                    pytest — 시뮬·DCF 공식
 ```
