@@ -66,6 +66,8 @@ export interface Article {
   // 오피스
   officeClass?: string | null;
   officeMarket?: string | null;       // CBD / GBD / YBD / 기타
+  officeCore?: string | null;         // 권역 핵심 역 (반경 안일 때만)
+  officeCoreDistanceM?: number | null;
   officeExclusivePyeong?: number | null;
   officeLeasablePyeong?: number | null;
   officeNoc10k?: number | null;       // NOC (만원/전용평/월)
@@ -90,6 +92,8 @@ export interface Article {
   adr10k?: number | null;
   adrTier?: number | null;
   adrMultiplier?: number | null;
+  hotelHub?: string | null;           // 숙박 수요 거점 역 (반경 안일 때만)
+  hotelHubDistanceM?: number | null;
   adrBase10k?: number | null;
   occupancy?: number | null;
   fnbRatio?: number | null;
@@ -125,7 +129,7 @@ export interface Article {
   prevDealPrice?: number | null;
   priceChangePct?: number | null;
 
-  // 데이터 점검 표시 ("price_low" / "cap_high" / "zone_unfit")
+  // 데이터 점검 표시 ("price_low" / "cap_high" / "zone_unfit" / "zone_conflict" / "area_mismatch")
   outlierFlags?: string[] | null;
 }
 

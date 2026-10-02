@@ -52,15 +52,15 @@ const FALLBACK_SIM: SimAssumptions = {
   grade_5_min_pyeong: 7000,
   grade_3: {
     adr_10k: 15.0, occupancy: 0.87, fnb_ratio: 0.10, gop_ratio: 0.50,
-    construction_cost_per_pyeong_M: 12.0, room_area_sqm: 20.0, exclusive_ratio: 0.80,
+    construction_cost_per_pyeong_M: 12.0, room_area_sqm: 20.0, exclusive_ratio: 0.62,
   },
   grade_4: {
     adr_10k: 20.0, occupancy: 0.85, fnb_ratio: 0.15, gop_ratio: 0.45,
-    construction_cost_per_pyeong_M: 14.0, room_area_sqm: 25.0, exclusive_ratio: 0.70,
+    construction_cost_per_pyeong_M: 14.0, room_area_sqm: 25.0, exclusive_ratio: 0.50,
   },
   grade_5: {
     adr_10k: 40.0, occupancy: 0.80, fnb_ratio: 0.30, gop_ratio: 0.375,
-    construction_cost_per_pyeong_M: 18.0, room_area_sqm: 33.0, exclusive_ratio: 0.50,
+    construction_cost_per_pyeong_M: 18.0, room_area_sqm: 33.0, exclusive_ratio: 0.40,
   },
   office: {
     min_total_pyeong: 1000,
@@ -77,10 +77,10 @@ const FALLBACK_SIM: SimAssumptions = {
 };
 
 const MARKET_LABELS: Record<string, string> = {
-  CBD: "CBD (중구·종로)",
-  GBD: "GBD (강남·서초)",
-  YBD: "YBD (영등포·마포)",
-  기타: "기타 권역",
+  CBD: "CBD (도심 핵심 역세권)",
+  GBD: "GBD (강남 핵심 역세권)",
+  YBD: "YBD (여의도동)",
+  기타: "기타 (그 밖 전부)",
 };
 
 /** backend 응답(DevAssumptions 전체)에서 form이 다루는 키만 추출. */

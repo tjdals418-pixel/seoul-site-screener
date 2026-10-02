@@ -340,7 +340,6 @@ export default function Map({ filters, onSelect, selectedAid }: Props) {
             "circle-stroke-color": [
               "case",
               ["boolean", ["feature-state", "selected"], false], "#121a21",
-              ["==", ["get", "isNew"], 1], "#2e7d4f",       // NEW = green ring
               "#ffffff",
             ],
             "circle-opacity": ["case", ["==", ["get", "low"], 1], 0.7, 0.95],
@@ -504,9 +503,7 @@ export default function Map({ filters, onSelect, selectedAid }: Props) {
             isGroup: a.isCombinedDevelopment ? 1 : 0,
             isMember: isMember ? 1 : 0,
             color,
-            isNew: a.isNew ? 1 : 0,
             low: (a.capRate ?? 0) < 0.04 ? 1 : 0,
-            priceChangePct: a.priceChangePct ?? null,
           },
         };
       });

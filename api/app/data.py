@@ -20,7 +20,11 @@ from naver_crawler.transforms import (
     DevAssumptions,
     apply_show_filter,
     compute_dev_metrics,
-    find_same_building_duplicates,
+    data_issue,
+    existing_gfa_sqm,
+    rail_opened,
+    redevelopment_issue,
+    same_building_report,
 )
 
 
@@ -71,10 +75,50 @@ def _load_payload() -> dict:
     return {}
 
 
+_RAIL_KEYS = ("devNearestRailStation", "devNearestRailLine", "devNearestRailOpenDate",
+              "devNearestRailDistanceM", "devNearestRailWalkMin", "devRailSummary")
+
+
+def _drop_opened_rail(a: dict, as_of: str | None) -> None:
+    """기준일 전에 이미 개통한 역은 '개통 예정 역'에서 뺀다 (원본에 옛 예정일이 남아 있음)."""
+    if rail_opened(a.get("devNearestRailOpenDate"), as_of):
+        for k in _RAIL_KEYS:
+            a.pop(k, None)
+    for m in a.get("groupMembersDetail") or []:
+        _drop_opened_rail(m, as_of)
+
+
+_JIGU_KEYS = ("devJiguPrimaryName", "devJiguPrimaryType", "devJiguPrimaryStep")
+
+
+def _inherit_planning(group: dict, members: list[dict]) -> None:
+    """합필 부지의 지구단위계획·개통 예정 역 — 구성 필지 값을 물려받는다.
+
+    가상 매물이라 자체 값이 없어서, 그대로 두면 '지구단위계획구역만'·'개통 예정 역
+    인근만' 필터에서 합필이 전부 빠지고 상세에도 표시되지 않는다.
+    """
+    with_jigu = next((m for m in members if str(m.get("devJiguPrimaryName") or "").strip()), None)
+    if with_jigu:
+        for k in _JIGU_KEYS:
+            group[k] = with_jigu.get(k)
+    with_rail = [m for m in members if str(m.get("devNearestRailStation") or "").strip()]
+    if with_rail:
+        nearest = min(with_rail, key=lambda m: m.get("devNearestRailDistanceM") or float("inf"))
+        for k in _RAIL_KEYS:
+            if k in nearest:
+                group[k] = nearest[k]
+
+
 @lru_cache(maxsize=1)
 def load_raw_articles() -> tuple[dict, ...]:
     """매물 list (tuple로 immutable). 중개사 정보는 로드 시점에 제거."""
-    return tuple(strip_private(a) for a in (_load_payload().get("articles") or []))
+    as_of = data_as_of()
+    out = []
+    for a in _load_payload().get("articles") or []:
+        a = strip_private(a)
+        _drop_opened_rail(a, as_of)
+        out.append(a)
+    return tuple(out)
 
 
 def data_as_of() -> str | None:
@@ -117,20 +161,86 @@ def find_previous_snapshot(current_date: str | None) -> Path | None:
     return snaps[-1] if snaps else None
 
 
-def snapshot_prices(path: Path) -> dict[str, float]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    return {
-        str(a.get("articleNo")): float(a.get("dealPrice") or 0)
-        for a in data.get("articles") or []
-        if a.get("articleNo")
-    }
+def _listing_site(a: dict) -> dict | None:
+    """스냅샷 간 같은 건물을 찾는 데 쓰는 값. 통합그룹이거나 필수값이 없으면 None."""
+    if a.get("isCombinedDevelopment"):
+        return None
+    try:
+        site = {
+            "gu": str(a.get("divisionName")), "land": float(a["landSpace"]),
+            "lat": float(a["latitude"]), "lon": float(a["longitude"]),
+            "price": float(a["dealPrice"]), "floor": float(a.get("floorSpace") or 0),
+        }
+    except (KeyError, TypeError, ValueError):
+        return None
+    if site["land"] <= 0 or site["price"] <= 0:
+        return None
+    site["pnu"] = str(a.get("pnu") or "")
+    site["road"] = str(a.get("regRoadAddress") or "")
+    return site
+
+
+def match_previous_prices(current: list[dict] | tuple[dict, ...], previous: list[dict],
+                          max_distance_m: float = 30) -> dict[str, float]:
+    """현재 매물번호 → 이전 스냅샷에서 같은 건물의 호가.
+
+    이전 스냅샷에 없던 건물이면 키가 없고(= 신규), 같은 건물은 있었지만 비교할 만한
+    호가가 없으면 0.0 (신규는 아님). 매물번호는 재등록될 때마다 바뀌어 스냅샷 사이에
+    이어지지 않으므로 아래 순서로 같은 건물을 찾는다.
+      1. 같은 자치구에서 좌표가 가깝고 대지면적이 같거나(±1㎡, 30m) 현재 연면적이
+         같은(±1㎡, 50m) 매물 → 같은 조건의 매물로 보고 호가를 비교한다. 여러 건이면
+         현재 호가와 가장 가까운 값 (중개사별 호가 차이를 변동으로 오인하지 않도록).
+      2. 같은 PNU이거나 도로명주소가 같은 매물 → 같은 건물이지만 면적 기재가 달라진
+         경우. 신규로 표시하지 않되, 매물 범위가 달라졌을 수 있어 호가는 비교하지 않는다.
+    """
+    Entry = tuple[float, float, float, float, float]   # 대지, 연면적, 위도, 경도, 호가
+    by_land: dict[tuple[str, int], list[Entry]] = {}
+    by_floor: dict[tuple[str, int], list[Entry]] = {}
+    pnus: set[str] = set()
+    roads: set[str] = set()
+    for a in previous:
+        site = _listing_site(a)
+        if not site:
+            continue
+        entry = (site["land"], site["floor"], site["lat"], site["lon"], site["price"])
+        by_land.setdefault((site["gu"], int(site["land"])), []).append(entry)
+        if site["floor"] > 0:
+            by_floor.setdefault((site["gu"], int(site["floor"])), []).append(entry)
+        if site["pnu"]:
+            pnus.add(site["pnu"])
+        if site["road"]:
+            roads.add(site["road"])
+
+    def near(e: Entry, site: dict, limit_m: float) -> bool:
+        return (((e[2] - site["lat"]) * 111_000) ** 2 + ((e[3] - site["lon"]) * 88_000) ** 2) ** 0.5 <= limit_m
+
+    def lookup(index: dict[tuple[str, int], list[Entry]], site: dict, key: str, col: int,
+               limit_m: float) -> list[Entry]:
+        v = site[key]
+        return [e for bucket in (int(v) - 1, int(v), int(v) + 1)
+                for e in index.get((site["gu"], bucket), ())
+                if abs(e[col] - v) <= 1.0 and near(e, site, limit_m)]
+
+    matched: dict[str, float] = {}
+    for a in current:
+        site = _listing_site(a)
+        if not site:
+            continue
+        same = lookup(by_land, site, "land", 0, max_distance_m)
+        if site["floor"] > 0:
+            same += lookup(by_floor, site, "floor", 1, 50)
+        if same:
+            matched[str(a.get("articleNo"))] = min((e[4] for e in same), key=lambda v: abs(v - site["price"]))
+        elif (site["pnu"] and site["pnu"] in pnus) or (site["road"] and site["road"] in roads):
+            matched[str(a.get("articleNo"))] = 0.0
+    return matched
 
 
 @lru_cache(maxsize=1)
 def load_previous_snapshot() -> tuple[str | None, dict[str, float]]:
-    """(이전 snapshot 날짜, articleNo → dealPrice). 없으면 (None, {}).
+    """(이전 snapshot 날짜, 현재 매물번호 → 같은 건물의 이전 호가). 없으면 (None, {}).
 
-    diff 비교용: 현재 데이터에 있는데 이전에 없으면 NEW, 있으면 가격 변동률.
+    diff 비교용: 이전 스냅샷에 같은 건물이 없으면 NEW, 있으면 가격 변동률.
     공개 데이터는 export 시점에 계산해 둔 prevPrices를 그대로 쓴다.
     """
     payload = _load_payload()
@@ -140,9 +250,10 @@ def load_previous_snapshot() -> tuple[str | None, dict[str, float]]:
     if prev is None:
         return None, {}
     try:
-        return prev.stem, snapshot_prices(prev)
+        previous = json.loads(prev.read_text(encoding="utf-8")).get("articles") or []
     except (OSError, ValueError):
         return None, {}
+    return prev.stem, match_previous_prices(load_raw_articles(), previous)
 
 
 @lru_cache(maxsize=1)
@@ -162,7 +273,7 @@ def get_geo_stats() -> dict:
     return dict(_GEO_STATS)
 
 
-def _to_shapely(geom: dict | None):
+def _to_shapely(geom: dict | None, count_stats: bool = False):
     """GeoJSON dict → shapely Geometry. None / 잘못된 geom은 None.
 
     shapely.geometry.shape는 dict["type"]+dict["coordinates"]를 그대로 받음.
@@ -174,7 +285,8 @@ def _to_shapely(geom: dict | None):
         from shapely.geometry import shape
         return shape(geom)
     except Exception:
-        _GEO_STATS["skipped"] += 1
+        if count_stats:
+            _GEO_STATS["skipped"] += 1
         return None
 
 
@@ -201,73 +313,81 @@ def _compute_group_connectivity() -> dict[str, frozenset[str]]:
     한쪽 polygon만 4m buffer → R-tree query로 인접 후보 추림 → 원본 polygon과
     intersects 확인. effective threshold = polygon 최단거리 4m (의도된 값).
     """
-    from shapely.strtree import STRtree
-
     _GEO_STATS.update(skipped=0, total=0)
-    articles = load_raw_articles()
-    by_aid = {str(a.get("articleNo")): a for a in articles}
     groups: dict[str, list[str]] = {}
-    for a in articles:
+    for a in load_raw_articles():
         if a.get("partOfGroup"):
             groups.setdefault(str(a.get("partOfGroup")), []).append(
                 str(a.get("articleNo"))
             )
+    return {gid: _largest_adjacent(member_aids, count_stats=True) for gid, member_aids in groups.items()}
 
-    result: dict[str, frozenset[str]] = {}
-    for gid, member_aids in groups.items():
-        # polygon load (원본 + 4m buffer 둘 다 보관)
-        geoms: list = []          # 원본 polygon
-        buffers: list = []        # 4m buffer (한쪽만)
-        valid_aids: list[str] = []
-        for aid in member_aids:
-            a = by_aid.get(aid)
+
+@lru_cache(maxsize=1)
+def _raw_by_aid() -> dict[str, dict]:
+    return {str(a.get("articleNo")): a for a in load_raw_articles()}
+
+
+def _largest_adjacent(member_aids: list[str], count_stats: bool = False) -> frozenset[str]:
+    """주어진 매물들 중 서로 맞닿은(최단거리 4m 이내) 가장 큰 묶음. 2개 미만이면 빈 set.
+
+    count_stats는 /api/meta/data-quality용 통계 — 최초 인접성 계산에서만 센다.
+    """
+    from shapely.strtree import STRtree
+
+    by_aid = _raw_by_aid()
+    # polygon load (원본 + 4m buffer 둘 다 보관)
+    geoms: list = []          # 원본 polygon
+    buffers: list = []        # 4m buffer (한쪽만)
+    valid_aids: list[str] = []
+    for aid in member_aids:
+        a = by_aid.get(aid)
+        if count_stats:
             _GEO_STATS["total"] += 1
-            g = _to_shapely(a.get("parcelPolygon") if a else None)
-            if g is None or g.is_empty:
-                continue
-            geoms.append(g)
-            buffers.append(g.buffer(_ADJACENCY_THRESHOLD_DEG))
-            valid_aids.append(aid)
-
-        if len(valid_aids) < 2:
-            result[gid] = frozenset()
+        g = _to_shapely(a.get("parcelPolygon") if a else None, count_stats)
+        if g is None or g.is_empty:
             continue
+        geoms.append(g)
+        buffers.append(g.buffer(_ADJACENCY_THRESHOLD_DEG))
+        valid_aids.append(aid)
 
-        # R-tree는 원본 polygon으로 build, query는 buffer로 → 최단거리 ≤ 4m 후보
-        tree = STRtree(geoms)
-        adj: dict[str, set[str]] = {aid: set() for aid in member_aids}
-        for i, g_buf in enumerate(buffers):
-            # buffer가 닿는 원본 polygon 후보 (한쪽 buffer = 최단거리 4m semantic)
-            candidates = tree.query(g_buf)
-            for j in candidates:
-                if j <= i:        # 무방향 → 한쪽만
-                    continue
-                if g_buf.intersects(geoms[j]):
-                    a_i, a_j = valid_aids[i], valid_aids[j]
-                    adj[a_i].add(a_j)
-                    adj[a_j].add(a_i)
+    if len(valid_aids) < 2:
+        return frozenset()
 
-        # BFS connected components
-        visited: set[str] = set()
-        components: list[set[str]] = []
-        for aid in member_aids:
-            if aid in visited:
+    # R-tree는 원본 polygon으로 build, query는 buffer로 → 최단거리 ≤ 4m 후보
+    tree = STRtree(geoms)
+    adj: dict[str, set[str]] = {aid: set() for aid in member_aids}
+    for i, g_buf in enumerate(buffers):
+        # buffer가 닿는 원본 polygon 후보 (한쪽 buffer = 최단거리 4m semantic)
+        candidates = tree.query(g_buf)
+        for j in candidates:
+            if j <= i:        # 무방향 → 한쪽만
                 continue
-            comp: set[str] = set()
-            stack = [aid]
-            while stack:
-                cur = stack.pop()
-                if cur in comp:
-                    continue
-                comp.add(cur)
-                visited.add(cur)
-                for nb in adj.get(cur, ()):
-                    if nb not in comp:
-                        stack.append(nb)
-            components.append(comp)
-        largest = max(components, key=len, default=set())
-        result[gid] = frozenset(largest) if len(largest) >= 2 else frozenset()
-    return result
+            if g_buf.intersects(geoms[j]):
+                a_i, a_j = valid_aids[i], valid_aids[j]
+                adj[a_i].add(a_j)
+                adj[a_j].add(a_i)
+
+    # BFS connected components
+    visited: set[str] = set()
+    components: list[set[str]] = []
+    for aid in member_aids:
+        if aid in visited:
+            continue
+        comp: set[str] = set()
+        stack = [aid]
+        while stack:
+            cur = stack.pop()
+            if cur in comp:
+                continue
+            comp.add(cur)
+            visited.add(cur)
+            for nb in adj.get(cur, ()):
+                if nb not in comp:
+                    stack.append(nb)
+        components.append(comp)
+    largest = max(components, key=len, default=set())
+    return frozenset(largest) if len(largest) >= 2 else frozenset()
 
 
 def _dedupe_close_listings(articles: list[dict]) -> tuple[list[dict], set[str]]:
@@ -348,6 +468,17 @@ def _dedupe_close_listings(articles: list[dict]) -> tuple[list[dict], set[str]]:
     return non_members + deduped_members, dropped
 
 
+@lru_cache(maxsize=1)
+def _same_building_report() -> tuple[frozenset[str], frozenset[str]]:
+    """같은 건물 중복 등재 → (지울 매물, 용도지역이 엇갈린 채 남긴 매물). 가정값과 무관해 1회만 계산."""
+    dropped, zoning_conflict = same_building_report(load_raw_articles())
+    return frozenset(dropped), frozenset(zoning_conflict)
+
+
+def _same_building_duplicates() -> frozenset[str]:
+    return _same_building_report()[0]
+
+
 def build_assumptions(sim: dict[str, Any] | None = None) -> DevAssumptions:
     """config 기본값 위에 사용자 override(sim)를 덮어쓴 DevAssumptions.
 
@@ -378,9 +509,29 @@ def _percentile(values: list[float], p: float) -> float | None:
 
 
 CAP_CHECK_THRESHOLD = 0.10   # 취득 Cap 10% 초과 → 호가·면적 재확인 권장
+AREA_MISMATCH_RATIO = 1.5    # 매물 대지면적 ÷ 연결된 필지 면적이 이 배수 밖이면 '면적 확인' 표시
 
 
-def _mark_outliers(articles: list[dict]) -> None:
+def _area_mismatch(a: dict) -> bool:
+    """매물에 적힌 대지면적이 연결된 필지 면적과 크게 다르다.
+
+    여러 필지를 묶은 매물(지도에는 한 필지만 그려진다)이거나 필지가 잘못 연결된 경우.
+    절반 미만은 대지지분으로 보고 아예 제외하므로(data_issue) 여기 오는 건 그보다 덜한 불일치.
+    """
+    try:
+        land, parcel = float(a.get("landSpace") or 0), float(a.get("parcelAreaM2") or 0)
+    except (TypeError, ValueError):
+        return False
+    return bool(land and parcel) and not (1 / AREA_MISMATCH_RATIO <= land / parcel <= AREA_MISMATCH_RATIO)
+
+# 이전 스냅샷의 같은 건물 호가와 비교
+MIN_COMPARABLE_PRICE = 10000         # 1억(만원) 미만 호가는 비교 대상에서 제외 (입력 오류)
+PRICE_TYPO_RATIO = 0.3               # 현재 호가가 이전의 30% 미만 → 자릿수 누락 등 입력 오류로 보고 제외
+PRICE_CHANGE_RANGE = (0.5, 1.5)      # 이 범위 밖 변동은 같은 조건의 매물이 아니라고 보고 표시하지 않음
+
+
+def _mark_outliers(articles: list[dict], p5_lpp: float | None,
+                   zoning_conflict: frozenset[str] = frozenset()) -> None:
     """데이터 점검이 필요한 매물에 outlierFlags 마킹 (in-place).
 
     순위 상위권이 구조적으로 걸리지 않도록 분위수 대신 절대 기준을 쓴다
@@ -388,13 +539,12 @@ def _mark_outliers(articles: list[dict]) -> None:
     - landPerPyeongM < P5 → 'price_low'  (저평가 — 면적/가격 오기 의심)
     - capRate > 10%      → 'cap_high'   (서울 신축 기준으로 드문 수준)
     - 신축 불가 용도지역인데 시뮬됨 → 'zone_unfit' (호텔/오피스 단일 모드)
-    """
-    valid = [a for a in articles
-             if not a.get("partOfGroup") or a.get("isCombinedDevelopment")]
-    lpps = [float(a["landPerPyeongM"]) for a in valid
-            if a.get("landPerPyeongM") is not None]
-    p5_lpp = _percentile(lpps, 0.05)
+    - 같은 건물이 다른 용도지역으로도 등재됨 → 'zone_conflict' (용적률 낮은 쪽으로 계산)
+    - 대지면적이 연결된 필지 면적과 1.5배 이상 다름 → 'area_mismatch' (합필은 구성 필지 중 하나라도)
 
+    p5_lpp는 용도 모드와 무관한 모집단(신축 가능 용도지역의 개발 후보 전체)에서 구한
+    값을 받는다 — 같은 매물의 표시가 모드에 따라 달라지지 않도록.
+    """
     for a in articles:
         flags: list[str] = []
         lpp = a.get("landPerPyeongM")
@@ -406,6 +556,15 @@ def _mark_outliers(articles: list[dict]) -> None:
         # 호텔/오피스 신축 불가 용도지역인데 시뮬된 매물 (hotel/office 단일 모드)
         if a.get("devUse") and not a.get("devZoneOk"):
             flags.append("zone_unfit")
+        if str(a.get("articleNo")) in zoning_conflict:
+            flags.append("zone_conflict")
+        if a.get("isCombinedDevelopment"):
+            raw_by_aid = _raw_by_aid()
+            parcels = [raw_by_aid.get(str(m.get("articleNo")), m) for m in a.get("groupMembersDetail") or []]
+        else:
+            parcels = [a]
+        if any(_area_mismatch(x) for x in parcels):
+            flags.append("area_mismatch")
         if flags:
             a["outlierFlags"] = flags
 
@@ -422,33 +581,72 @@ def resim_articles(sim: dict[str, Any] | None = None, use: str = "best") -> list
     group_conn = compute_group_connectivity()
     _prev_date, prev_prices = load_previous_snapshot()
 
-    # 같은 건물 중복 등재 제거 — (1) 매매가·면적·좌표가 같은 매물 (단일·멤버 모두),
-    # (2) 그룹 안의 같은 PNU. 제거된 멤버는 아래 그룹 재계산에서도 빠진다.
-    same_building = find_same_building_duplicates(raw)
+    # 같은 건물 중복 등재 제거 — (1) 대지면적·좌표가 같고 호가·연면적·주소 등이 겹치는
+    # 매물 (단일·멤버 모두), (2) 그룹 안의 같은 PNU. 제거된 멤버는 아래 그룹 재계산에서도 빠진다.
+    same_building, zoning_conflict = _same_building_report()
     deduped_raw, dropped_aids = _dedupe_close_listings(
         [a for a in raw if str(a.get("articleNo")) not in same_building]
     )
-    dropped_aids |= same_building
+    dropped_aids = dropped_aids | same_building
+
+    def comparable_prev_price(a: dict) -> float | None:
+        prev = prev_prices.get(str(a.get("articleNo")))
+        return prev if prev and prev >= MIN_COMPARABLE_PRICE else None
+
+    def price_typo(a: dict) -> bool:
+        """같은 건물의 이전 호가보다 터무니없이 낮으면 자릿수 누락 같은 입력 오류로 본다."""
+        prev = comparable_prev_price(a)
+        return bool(prev) and float(a.get("dealPrice") or 0) < prev * PRICE_TYPO_RATIO
+
+    # 합필에 넣으면 안 되는 필지 — 단일 매물로도 걸러지는 데이터 이상(평당가 이상치,
+    # 호실·지분 매물, 호가 오타), 가격 미공개(1억 미만), 그리고 그 자체로 철거 실익이
+    # 없는 건물(이미 꽉 채워 지었거나 신축). 그대로 합산하면 그룹 Cap이 왜곡된다.
+    excluded = set(dropped_aids)
+    for a in deduped_raw:
+        if a.get("isCombinedDevelopment") or not a.get("partOfGroup"):
+            continue
+        if (a.get("dealPrice") or 0) < 10000 or (a.get("landSpace") or 0) <= 0 or price_typo(a):
+            excluded.add(str(a.get("articleNo")))
+            continue
+        m = compute_dev_metrics(a, assumptions, use)
+        if data_issue(m, assumptions) or redevelopment_issue(m, assumptions, as_member=True):
+            excluded.add(str(a.get("articleNo")))
+
+    # 그룹별 최종 멤버 — 제외 필지가 빠지면 그룹의 남은 필지 전체에서 맞닿은 가장 큰
+    # 묶음을 다시 고른다 (빠진 필지가 다리 역할이었으면 떨어진 필지는 같이 묶지 않고,
+    # 원래 두 번째였던 묶음이 온전하면 그쪽을 쓴다).
+    members_of: dict[str, list[str]] = {}
+    for a in raw:
+        if a.get("partOfGroup") and not a.get("isCombinedDevelopment"):
+            members_of.setdefault(str(a.get("partOfGroup")), []).append(str(a.get("articleNo")))
+    final_members: dict[str, frozenset[str]] = {}
+    for gid, allowed in group_conn.items():
+        if allowed & excluded:
+            allowed = _largest_adjacent(sorted(set(members_of.get(gid, ())) - excluded))
+        final_members[gid] = allowed
 
     processed: list[dict] = []
+    lpp_population: list[float] = []   # 평당가 하위 5% 기준 — 용도 모드와 무관한 모집단
     for a in deduped_raw:
-        # 통합 그룹 — 인접 멤버 ∩ dedupe 통과한 멤버만 합산해서 metric 재계산
+        if not a.get("isCombinedDevelopment") and price_typo(a):
+            continue
+        # 통합 그룹 — 최종 멤버만 합산해서 metric 재계산
         if a.get("isCombinedDevelopment"):
             gid = str(a.get("articleNo") or "")
-            allowed = group_conn.get(gid, frozenset())
+            allowed = final_members.get(gid, frozenset())
             if len(allowed) < 2:
                 continue
             all_members = a.get("groupMembersDetail") or []
-            # connectivity 통과 + dropped 아님 + dealPrice / landSpace 유효.
-            # dealPrice < 1억 (10,000만원)이면 가격 미공개 / 부분 토지 / 데이터
-            # 오류 가능성 — 호텔 시뮬 합산에서 제외 (통합 dealPrice 왜곡 방지).
-            kept = [m for m in all_members
-                    if str(m.get("articleNo") or "") in allowed
-                    and str(m.get("articleNo") or "") not in dropped_aids
-                    and (m.get("dealPrice") or 0) >= 10000
-                    and (m.get("landSpace") or 0) > 0]
+            kept = [m for m in all_members if str(m.get("articleNo") or "") in allowed]
             if len(kept) < 2:
                 continue
+            raw_by_aid = _raw_by_aid()
+            a = dict(a)
+            _inherit_planning(a, [raw_by_aid.get(str(m.get("articleNo")), m) for m in kept])
+            # 철거 실익 판단용 현재 연면적 — 멤버별 추정치(건축물대장 보완) 합
+            a["existingGfaSqm"] = sum(
+                existing_gfa_sqm(raw_by_aid.get(str(m.get("articleNo")), m)) for m in kept
+            ) or None
             # 멤버가 줄었으면 metric 재계산
             if len(kept) < len(all_members):
                 total_land = sum(float(m.get("landSpace") or 0) for m in kept)
@@ -456,10 +654,14 @@ def resim_articles(sim: dict[str, Any] | None = None, use: str = "best") -> list
                 lats = [float(m.get("latitude")) for m in kept if m.get("latitude")]
                 lons = [float(m.get("longitude")) for m in kept if m.get("longitude")]
                 if total_land > 0 and lats and lons:
-                    a = dict(a)
                     a["landSpace"] = total_land
                     a["dealPrice"] = total_price
+                    a["floorSpace"] = sum(
+                        float(raw_by_aid.get(str(m.get("articleNo")), {}).get("floorSpace") or 0)
+                        for m in kept
+                    ) or None
                     a["groupSize"] = len(kept)
+                    a.pop("articleFeatureDescription", None)   # 멤버 수·합계가 옛 값으로 적혀 있음
                     a["groupMembersDetail"] = kept
                     a["groupMemberArticles"] = ",".join(str(m.get("articleNo")) for m in kept)
                     a["latitude"] = sum(lats) / len(lats)
@@ -470,7 +672,7 @@ def resim_articles(sim: dict[str, Any] | None = None, use: str = "best") -> list
         # (떨어진 필지는 같이 묶지 않음 → 단일 매물 취급)
         elif a.get("partOfGroup"):
             gid = str(a.get("partOfGroup"))
-            allowed = group_conn.get(gid, frozenset())
+            allowed = final_members.get(gid, frozenset())
             aid = str(a.get("articleNo") or "")
             if aid not in allowed:
                 a = dict(a)
@@ -489,6 +691,10 @@ def resim_articles(sim: dict[str, Any] | None = None, use: str = "best") -> list
         for k, v in preserved.items():
             if v is not None:
                 m[k] = v
+        if (m.get("devZoneOk") and m.get("landPerPyeongM") is not None
+                and (m.get("hotelCapRate") is not None or m.get("officeCapRate") is not None)
+                and not data_issue(m, assumptions) and not redevelopment_issue(m, assumptions)):
+            lpp_population.append(float(m["landPerPyeongM"]))
         m = apply_show_filter(m, assumptions)
 
         # apply_show_filter가 isShown=False로 마크하면 무조건 제외
@@ -498,25 +704,15 @@ def resim_articles(sim: dict[str, Any] | None = None, use: str = "best") -> list
         # ── 주간 변동 추적 (단일/멤버만) ──
         # 통합그룹의 dealPrice는 멤버 수 / dedupe 영향 받아 부정확
         is_group = bool(m.get("isCombinedDevelopment"))
-        if prev_prices and not is_group:
-            aid = str(m.get("articleNo") or "")
-            cur_price = float(m.get("dealPrice") or 0)
-            prev_price = prev_prices.get(aid)
-            if prev_price is None:
-                m["isNew"] = True
-                m["prevDealPrice"] = None
-                m["priceChangePct"] = None
-            else:
-                m["isNew"] = False
+        m["isNew"] = bool(prev_prices) and not is_group and str(m.get("articleNo")) not in prev_prices
+        m["prevDealPrice"] = None
+        m["priceChangePct"] = None
+        prev_price = None if is_group else comparable_prev_price(m)
+        if prev_price:
+            ratio = float(m.get("dealPrice") or 0) / prev_price
+            if PRICE_CHANGE_RANGE[0] <= ratio <= PRICE_CHANGE_RANGE[1]:
                 m["prevDealPrice"] = prev_price
-                if prev_price > 0:
-                    m["priceChangePct"] = round((cur_price - prev_price) / prev_price * 100, 2)
-                else:
-                    m["priceChangePct"] = None
-        else:
-            m["isNew"] = False
-            m["prevDealPrice"] = None
-            m["priceChangePct"] = None
+                m["priceChangePct"] = round((ratio - 1) * 100, 2)
 
         processed.append(m)
 
@@ -532,11 +728,14 @@ def resim_articles(sim: dict[str, Any] | None = None, use: str = "best") -> list
         if is_member and str(m.get("partOfGroup")) not in surviving_groups:
             m["partOfGroup"] = None
             is_member = False
+            # 멤버일 때는 건너뛴 단일 매물 기준(등급·철거 실익)을 다시 적용
+            if not apply_show_filter(m, assumptions).get("isShown"):
+                continue
         if m.get("devUse") or is_member:
             new_articles.append(m)
 
     # outlier 마킹 — 전체 산출 후 분위수 기반
-    _mark_outliers(new_articles)
+    _mark_outliers(new_articles, _percentile(lpp_population, 0.05), zoning_conflict)
     # 평당가 하위 5% + 취득 Cap 10% 초과가 겹치면 호가·면적 입력 오류일 가능성이 매우
     # 높다 (예: 대지·연면적 뒤바뀜) — 순위에 올리지 않는다.
     return [

@@ -29,9 +29,11 @@ tests/                    pytest — 시뮬·DCF 공식
 - **취득 Cap** = 안정화 NOI ÷ 총사업비. 순위·지도 색·최적 용도 선택 모두 이것 하나.
 - 총사업비 = 매입 + 공사(연면적 × 평당) + 부대 6% + 건설이자(LTV 60% × 5.5% × 2년)
 - 호텔 NOI = GOP − 운영사 fee(매출 2% + GOP 8%) − FF&E 3% − 재산세 0.3%(총사업비)
+- 호텔 객실수 = 지상 연면적 × 전용률(3성 62% / 4성 50% / 5성 40%) ÷ 객실면적. ADR = 등급 기준 × 입지 보정율(자치구 Tier, 숙박 거점 역 800m 밖이면 −10%p)
 - 오피스 NOI = 연면적 × 전용률 50% × 권역 NOC × 12 − 연면적 × 3만원/평/월 × 12
+- 오피스 권역 = CBD(종로·중구)·GBD(강남·서초구)는 핵심 역 700m 안, YBD는 여의도동, 그 밖은 기타 (`transforms.OFFICE_CORES`, `HOTEL_HUBS`)
 - 최적 용도(best) = 상업·준주거·준공업 지역에서 호텔/오피스 중 취득 Cap 높은 쪽
-- 매각 Cap(exitCap)은 DCF에만 사용 (호텔: 자치구 Tier, 오피스: 권역)
+- 매각 Cap(exitCap)은 DCF에만 사용 (호텔: 입지 보정 후 Tier, 오피스: 권역)
 - 순위 기준은 취득 Cap 하나로 고정 (스프레드·개발이익률은 쓰지 않음)
 
 ## 단위
@@ -54,5 +56,7 @@ cd web && npm run dev
 - 중개사 이름·전화번호는 수집하지 않는다 (`enrich.fetch_agent: false`). API도 재귀 제거.
 - `compute_dev_metrics`는 입력 dict를 수정하지 않는다 (API가 lru_cache 원본을 넘김).
 - 그룹이 탈락하면 멤버의 partOfGroup을 지워 단일 매물로 되돌린다 (`resim_articles`).
+- 후보 제외 기준은 `transforms.data_issue`(호가·면적 오류, 호실·지분)와 `redevelopment_issue`(철거 실익 없음), 그리고 `data.resim_articles` 안의 같은 건물 중복 제거(`find_same_building_duplicates`)·호가 오타(이전 스냅샷의 30% 미만)·1억 미만 멤버 제외. 합필에 넣는 필지에도 같은 기준을 쓴다.
+- 신규·호가 변동은 매물번호가 아니라 위치·대지면적으로 이전 스냅샷과 맞춘다 (`data.match_previous_prices`) — 매물번호는 재등록 때마다 바뀐다.
 - 필터 규칙은 `api/app/filters.py`와 `web/src/lib/api.ts:applyFilterClient` 두 곳 — 같이 수정.
 - 크롤링은 수 시간 걸림 (enrich ≈ 1초/건). PC 절전 시 멈춤.

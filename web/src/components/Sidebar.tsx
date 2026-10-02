@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, RotateCcw } from "lucide-react";
-import type { FilterParams, MetaOptions } from "@/lib/api";
+import { applyFilterClient, type FilterParams, type MetaOptions } from "@/lib/api";
+import { useArticles } from "@/lib/articles-context";
 import { classesFor, type DevUse } from "@/lib/dev-class";
 
 const ALL_CATEGORIES = ["단일", "통합그룹", "그룹멤버"];
@@ -45,6 +46,26 @@ export default function Sidebar({ filters, onChange, use, meta }: Props) {
     );
   const isDefault = meaningful(filters) === meaningful(DEFAULT_FILTERS);
 
+  // 눌러도 결과가 0곳인 칩은 내놓지 않는다 — 현재 용도·가정값의 후보에 실제로 있는 값만.
+  // (선택해 둔 값은 후보에서 사라져도 해제할 수 있게 남긴다.)
+  const { all } = useArticles();
+  const pool = useMemo(
+    () => applyFilterClient(
+      { count: all.length, articles: all },
+      { categories: ["단일", "통합그룹"], hotel_zone_only: filters.hotel_zone_only },
+    ).articles.filter((a) => a.capRate != null),
+    [all, filters.hotel_zone_only],
+  );
+  const maxCap = pool.reduce((m, a) => Math.max(m, a.capRate ?? 0), 0);
+  const poolGu = new Set(pool.map((a) => a.divisionName));
+  const poolClass = new Set(pool.map((a) => a.devClass));
+  const ready = pool.length > 0;
+  const capSteps = CAP_STEPS.filter((v) => !ready || v === 0 || v <= maxCap || v === filters.cap_min);
+  const guOptions = (meta?.gu ?? []).filter((g) => !ready || poolGu.has(g) || (filters.gu ?? []).includes(g));
+  const classOptions = classesFor(use).filter(
+    (c) => !ready || poolClass.has(c) || (filters.grades ?? []).includes(c),
+  );
+
   return (
     <section aria-labelledby="filters-title">
       <div className="flex items-center justify-between mb-3">
@@ -60,8 +81,11 @@ export default function Sidebar({ filters, onChange, use, meta }: Props) {
       </div>
 
       <Field label="최소 취득 Cap">
-        <div className="grid grid-cols-6 gap-1">
-          {CAP_STEPS.map((v) => {
+        <div
+          className="grid gap-1"
+          style={{ gridTemplateColumns: `repeat(${capSteps.length}, minmax(0, 1fr))` }}
+        >
+          {capSteps.map((v) => {
             const active = (filters.cap_min ?? 0) === v;
             return (
               <button
@@ -83,7 +107,7 @@ export default function Sidebar({ filters, onChange, use, meta }: Props) {
 
       <Field label="자치구" hint={(filters.gu ?? []).length ? `${filters.gu!.length}곳 선택` : "전체"}>
         <div className="flex flex-wrap gap-1">
-          {meta?.gu.map((g) => (
+          {guOptions.map((g) => (
             <Chip
               key={g}
               label={g.replace(/구$/, "")}
@@ -99,7 +123,7 @@ export default function Sidebar({ filters, onChange, use, meta }: Props) {
         hint={(filters.grades ?? []).length ? undefined : "전체"}
       >
         <div className="flex flex-wrap gap-1">
-          {classesFor(use).map((g) => (
+          {classOptions.map((g) => (
             <Chip
               key={g}
               label={g}

@@ -12,6 +12,7 @@ from naver_crawler.transforms import (
     compute_dev_metrics,
     get_office_market,
     is_dev_zone,
+    rail_opened,
 )
 from app.feasibility import FeasibilityAssumptions, compute_feasibility
 
@@ -51,7 +52,9 @@ def test_hotel_cap_is_noi_over_total_cost():
 
 
 def test_office_noi_formula():
-    m = compute_dev_metrics(site(300, 600, "일반상업지역"), A, "office")
+    # 을지로입구역 옆 (CBD 핵심)
+    src = site(300, 600, "일반상업지역") | {"latitude": 37.5660, "longitude": 126.9830}
+    m = compute_dev_metrics(src, A, "office")
     total = m["devTotalPyeong"]
     noc = A.office.markets["CBD"].noc_10k
     rev = total * 0.5 * noc * 12 / 100                 # 전용 × NOC × 12 (백만원)
@@ -138,3 +141,103 @@ def test_partial_unit_listing_is_hidden():
     src = site(287, 120, "일반상업지역") | {"floorSpace": 14438.86}
     m = apply_show_filter(compute_dev_metrics(src, A, "hotel"), A)
     assert m["isShown"] is False and "호실" in m["shownReason"]
+
+
+def test_land_share_of_large_parcel_is_hidden():
+    # 대지 820㎡인데 소재 필지는 67,537㎡ → 단지 안 대지지분
+    src = site(248, 140, "일반상업지역") | {"parcelAreaM2": 67537.4}
+    m = apply_show_filter(compute_dev_metrics(src, A, "hotel"), A)
+    assert m["isShown"] is False and "대지지분" in m["shownReason"]
+
+
+def test_site_already_built_out_is_not_a_candidate():
+    # 개발 가능 연면적 2,580평인데 현재 건물이 이미 1,900평(74%) — 새로 지어도 1.5배가 안 됨
+    src = site(300, 600, "일반상업지역") | {"floorSpace": 1900 * SQM_PER_PYEONG, "approvalElapsedYear": 30}
+    m = apply_show_filter(compute_dev_metrics(src, A, "hotel"), A)
+    assert m["isShown"] is False and "신축 실익" in m["shownReason"]
+    low = src | {"floorSpace": 1500 * SQM_PER_PYEONG}         # 58%면 후보
+    assert apply_show_filter(compute_dev_metrics(low, A, "hotel"), A)["isShown"] is True
+
+
+def test_new_building_is_not_a_candidate_unless_underbuilt():
+    built = site(300, 600, "일반상업지역") | {"floorSpace": 1500 * SQM_PER_PYEONG, "approvalElapsedYear": 20}
+    m = apply_show_filter(compute_dev_metrics(built, A, "hotel"), A)
+    assert m["isShown"] is False and "철거 실익" in m["shownReason"]   # 20년차에 58% 사용 중
+    low = built | {"floorSpace": 300 * SQM_PER_PYEONG}       # 저층 근생은 새 건물이어도 후보
+    assert apply_show_filter(compute_dev_metrics(low, A, "hotel"), A)["isShown"] is True
+    old = built | {"approvalElapsedYear": 40}                 # 40년차면 58%여도 후보
+    assert apply_show_filter(compute_dev_metrics(old, A, "hotel"), A)["isShown"] is True
+
+
+# 좌표: 종로3가역 옆(낙원동) / 동묘앞 북쪽(숭인동) / 장안동 / 여의도 건너 대방동
+NAKWON = {"latitude": 37.5722, "longitude": 126.9905}
+SUNGIN = {"latitude": 37.5760, "longitude": 127.0160}
+JANGAN = {"latitude": 37.5700, "longitude": 127.0680}
+DAEBANG = {"latitude": 37.5125, "longitude": 126.9270}
+
+
+def test_hotel_adr_drops_one_tier_outside_demand_hubs():
+    hub = compute_dev_metrics(site(300, 600, "일반상업지역", gu="종로구") | NAKWON, A, "hotel")
+    off = compute_dev_metrics(site(300, 600, "일반상업지역", gu="동대문구") | JANGAN, A, "hotel")
+    assert hub["hotelHub"] == "종로3가" and hub["adrTier"] == 1
+    assert hub["adr10k"] == pytest.approx(A.grade_3.adr_10k)
+    # 동대문구는 Tier 3(80%)인데 숙박 거점 밖이라 70%
+    assert off["hotelHub"] is None and off["hotelHubDistanceM"] > A.hotel_hub_radius_m
+    assert off["adrMultiplier"] == pytest.approx(0.70) and off["adrTier"] == 4
+    assert off["adr10k"] == pytest.approx(A.grade_3.adr_10k * 0.70)
+
+
+def test_hotel_room_count_uses_realistic_gross_area_per_room():
+    m = compute_dev_metrics(site(300, 600, "일반상업지역"), A, "hotel")
+    gross_sqm_per_room = m["devTotalPyeong"] * SQM_PER_PYEONG / m["devRoomCount"]
+    assert 33 < gross_sqm_per_room < 40          # 3성급: 객실당 연면적 약 35㎡
+
+
+def test_office_market_needs_core_station_in_the_right_district():
+    core = compute_dev_metrics(site(300, 600, "일반상업지역", gu="종로구") | NAKWON, A, "office")
+    fringe = compute_dev_metrics(site(300, 600, "일반상업지역", gu="종로구") | SUNGIN, A, "office")
+    assert core["officeMarket"] == "CBD" and core["officeCore"] == "종로3가"
+    assert fringe["officeMarket"] == "기타" and fringe["officeCore"] is None
+    assert fringe["officeNoc10k"] == A.office.markets["기타"].noc_10k
+    # 여의도 건너편(동작구)은 가까워도 YBD가 아니고, 여의도동은 좌표와 무관하게 YBD
+    across = compute_dev_metrics(site(300, 600, "일반상업지역", gu="동작구") | DAEBANG, A, "office")
+    yeouido = compute_dev_metrics(
+        site(300, 600, "일반상업지역", gu="영등포구") | DAEBANG | {"sectorName": "여의도동"}, A, "office")
+    assert across["officeMarket"] == "기타"
+    assert yeouido["officeMarket"] == "YBD"
+
+
+def test_generic_commercial_zoning_uses_core_far_inside_the_wall():
+    inside = site(300, 600, "상업지역") | {"latitude": 37.5636, "longitude": 126.9826}   # 명동
+    assert compute_dev_metrics(inside, A, "hotel")["maxFar"] == 600
+
+
+def test_existing_floor_area_falls_back_to_registry_ratio():
+    # 매물에는 연면적 300평만 적혀 있지만 건축물대장 용적률 500% → 지상만 1,500평인 8년차 건물
+    src = site(300, 600, "일반상업지역") | {
+        "floorSpace": 300 * SQM_PER_PYEONG, "regFloorAreaRatio": 500, "approvalElapsedYear": 8}
+    m = apply_show_filter(compute_dev_metrics(src, A, "hotel"), A)
+    assert m["isShown"] is False and "철거 실익" in m["shownReason"]
+    # 준공연도를 모르면 새 건물로 단정하지 않는다
+    unknown_age = src | {"approvalElapsedYear": None}
+    assert apply_show_filter(compute_dev_metrics(unknown_age, A, "hotel"), A)["isShown"] is True
+
+
+def test_rail_already_opened_is_not_future():
+    assert rail_opened("2024.12", "2026-09-29")
+    assert not rail_opened("2027-11", "2026-09-29")
+    assert not rail_opened("2026", "2026-09-29")       # 연도만 있으면 연말로 본다
+    assert not rail_opened("", "2026-09-29") and not rail_opened(None, "2026-09-29")
+
+
+def test_listing_without_coordinates_gets_no_location_premium():
+    # 좌표가 없으면 반경을 확인할 수 없다 → 오피스는 '기타', 호텔은 거점 밖
+    m = compute_dev_metrics(site(300, 600, "일반상업지역", gu="중구"), A, "best")
+    assert m["officeMarket"] == "기타"
+    assert m["hotelHub"] is None and m["adrMultiplier"] == pytest.approx(0.90)
+
+
+def test_wall_boundary_bulges_west_at_seosomun():
+    from naver_crawler.transforms import is_in_historic_core
+    assert is_in_historic_core(37.56197, 126.97353)      # 서소문동 세종대로11길 — 도성 안
+    assert not is_in_historic_core(37.5600, 126.9690)    # 순화동 쪽 — 도성 밖

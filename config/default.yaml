@@ -97,8 +97,10 @@ dev_simulation:
   grade_5_min_pyeong: 7000             # 3000~7000평 → 4성급, 이상 → 5성급
 
   # 등급별 프로필 — 이 값들만 만지면 시나리오 변경
+  #   exclusive_ratio = 지상 연면적 중 객실 비율 (로비·복도·코어·부대시설 제외).
+  #   지하 포함 객실당 연면적으로 환산하면 약 35㎡(3성) / 54㎡(4성) / 89㎡(5성).
   grade_3:                             # 3성급 (1500~3000평)
-    exclusive_ratio: 0.80              # 전용면적 비율
+    exclusive_ratio: 0.62              # 전용면적 비율
     room_area_sqm: 20.0                # 객실면적
     adr_10k: 15.0                      # ADR (만원/박)
     occupancy: 0.87
@@ -107,7 +109,7 @@ dev_simulation:
     construction_cost_per_pyeong_M: 12.0  # 평당 1,200만원
 
   grade_4:                             # 4성급 (3000~7000평)
-    exclusive_ratio: 0.70
+    exclusive_ratio: 0.50
     room_area_sqm: 25.0
     adr_10k: 20.0
     occupancy: 0.85
@@ -116,13 +118,19 @@ dev_simulation:
     construction_cost_per_pyeong_M: 14.0   # 평당 1,400만원
 
   grade_5:                             # 5성급 (7000평 이상)
-    exclusive_ratio: 0.50
+    exclusive_ratio: 0.40
     room_area_sqm: 33.0
     adr_10k: 40.0
     occupancy: 0.80
     fnb_ratio: 0.30
     gop_ratio: 0.375
     construction_cost_per_pyeong_M: 18.0   # 평당 1,800만원
+
+  # 입지 보정 — 자치구 단위 가정(ADR Tier, 오피스 권역)을 핵심 역세권 여부로 한 번 더 나눈다.
+  #   기준 역 목록은 transforms.py의 HOTEL_HUBS / OFFICE_CORES.
+  hotel_hub_radius_m: 800              # 숙박 수요 거점 역 반경 — 밖이면 ADR 보정율 하향
+  hotel_off_hub_adr_step: 0.10         # 거점 밖 ADR 보정율 차감폭
+  office_core_radius_m: 700            # CBD(종로·중구)·GBD(강남·서초) 핵심 역 반경 — 밖이면 '기타' 권역 NOC. YBD는 여의도동
 
   # GOP → NOI 차감 (USALI 기준 — 호텔 거래 Cap Rate는 NOI 기준)
   mgmt_fee_base: 0.02                  # 운영사 base fee (총매출 대비)
@@ -142,10 +150,10 @@ dev_simulation:
     mid_large_min_pyeong: 5000         # 중대형
     mid_min_pyeong: 2000               # 중형 (그 미만 소형)
     markets:                           # NOC(만원/전용평/월) · 공실률 · 매각 Cap(DCF용)
-      CBD: {noc_10k: 28.0, vacancy: 0.0, exit_cap: 0.045}   # 중구·종로구
-      GBD: {noc_10k: 28.0, vacancy: 0.0, exit_cap: 0.045}   # 강남구·서초구
-      YBD: {noc_10k: 24.0, vacancy: 0.0, exit_cap: 0.048}   # 영등포구·마포구
-      기타: {noc_10k: 17.0, vacancy: 0.0, exit_cap: 0.055}
+      CBD: {noc_10k: 28.0, vacancy: 0.0, exit_cap: 0.045}   # 광화문·종로·을지로·시청·서울역 일대
+      GBD: {noc_10k: 28.0, vacancy: 0.0, exit_cap: 0.045}   # 테헤란로·강남대로·도산대로 일대
+      YBD: {noc_10k: 24.0, vacancy: 0.0, exit_cap: 0.048}   # 여의도
+      기타: {noc_10k: 17.0, vacancy: 0.0, exit_cap: 0.055}  # 권역 핵심 역 반경 밖 전부
 
   # 표시 필터 (이상치 제거)
   max_land_pyeong: 10000               # 대지 10000평 초과 → 단지/이상치로 보고 제외
@@ -157,6 +165,10 @@ dev_simulation:
   max_land_per_pyeong_M: 1000.0        # 10억/평 초과 제외
   min_bldg_per_pyeong_M: 5.0           # 현재 건물 연면적 평당 500만원 미만 → 호실·지분 매물로 보고 제외
   min_commercial_land_per_pyeong_M: 40.0   # 상업지역 토지 평당 4,000만원 미만 → 입력 오류로 보고 제외
+  min_parcel_share: 0.5                # 대지면적이 소재 필지의 50% 미만 → 단지·집합건물 대지지분으로 보고 제외
+  max_existing_gfa_ratio: 0.67         # 현재 연면적이 개발 가능 연면적의 2/3 이상 → 지어도 1.5배가 안 됨, 제외
+  new_building_years: 30               # 준공 30년차 미만이면서
+  new_building_gfa_ratio: 0.5          #   개발 가능 연면적의 50% 이상 지어진 건물 → 아직 쓸 만한 건물, 제외
 
 # ── 인접부지 통합개발 그룹화 ───────────────────────────────────────────
 # 같은 동(sectorName) + 같은 용도지역 + 좌표 거리 임계 이내 매물끼리 묶어서

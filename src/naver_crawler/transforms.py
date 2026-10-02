@@ -2,7 +2,9 @@ from __future__ import annotations
 
 """Pure data transformations for the fin.land pipeline. No I/O, no network."""
 
+import re
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any, Iterable
 
 
@@ -52,38 +54,81 @@ def _approx_distance_m(a: dict, b: dict) -> float:
     return (dlat * dlat + dlon * dlon) ** 0.5
 
 
-def find_same_building_duplicates(articles: Iterable[dict], max_distance_m: float = 50) -> set[str]:
-    """같은 건물이 여러 번 등재된 매물의 articleNo 집합 (남길 1건 제외).
+def same_building_report(articles: Iterable[dict], max_distance_m: float = 50) -> tuple[set[str], set[str]]:
+    """같은 건물 중복 등재 판정 → (지울 매물 articleNo, 용도지역이 엇갈린 채 남긴 매물 articleNo).
 
-    같은 자치구 + 매매가·대지면적이 같고 좌표가 가까우면 같은 건물로 본다 (연면적은
-    중개사마다 기재가 달라 비교하지 않음). 부번만 다른 PNU나 인접 동 이름으로 올라온
-    중복(중개사 여러 곳 등재)을 잡는다
-    — 그대로 두면 존재하지 않는 "2필지 합필"이 만들어진다. articleNo가 가장 작은
-    매물을 남기되, 합필 그룹에 속한 매물을 우선한다 (그룹이 쪼개지지 않도록).
-    통합그룹(가상 매물)은 대상이 아니다.
+    같은 자치구에서 대지면적이 같고(±1%) 좌표가 가까운 매물 가운데 아래 순서로 본다.
+      1. 대지·현재 연면적이 모두 1㎡ 안에서 같다 → 같은 건물 (주소가 달라도. 중개사가
+         같은 건물을 올렸는데 건축물대장만 옆 필지로 붙은 경우)
+      2. 도로명주소가 같다 → 같은 건물
+      3. 양쪽 도로명주소가 모두 있고 서로 다르다 → 별개 건물. 면적이 같은 나란한
+         "쌍둥이 필지"는 땅값 기준으로 호가까지 같게 나오는 일이 흔하다.
+      4. (주소가 한쪽이라도 없을 때) 호가가 같다 / 연면적이 같다 / 호가가 10% 안에서
+         비슷하고 준공연차나 층수가 같다 → 같은 건물
+    그대로 두면 존재하지 않는 "2필지 합필"이 만들어지거나 같은 건물이 순위에 두 번 나온다.
+
+    남기는 순서: 합필 그룹에 속한 매물 → 신축 가능 용도지역으로 잡힌 매물 → 용적률이
+    낮은 쪽 → 호가가 낮은 쪽. 용도지역이 서로 다르게 올라온 건물은 두 번째 반환값에
+    담아 "용도지역 확인" 표시를 붙일 수 있게 한다. 통합그룹(가상 매물)은 대상이 아니다.
     """
-    buckets: dict[tuple, list[dict]] = {}
+    by_gu: dict[Any, list[dict]] = {}
     for a in articles:
         if a.get("isCombinedDevelopment"):
             continue
         price, land = a.get("dealPrice"), a.get("landSpace")
         if not price or not land or a.get("latitude") is None or a.get("longitude") is None:
             continue
-        key = (a.get("divisionName"), round(float(price)), round(float(land), 1))
-        buckets.setdefault(key, []).append(a)
+        by_gu.setdefault(a.get("divisionName"), []).append(a)
+
+    def same_value(a: dict, b: dict, key: str) -> bool:
+        va, vb = _num_or_none(a.get(key)), _num_or_none(b.get(key))
+        return va is not None and va == vb
+
+    def same_building(a: dict, b: dict) -> bool:
+        if _approx_distance_m(a, b) > max_distance_m:
+            return False
+        fa, fb = _safe_num(a.get("floorSpace")), _safe_num(b.get("floorSpace"))
+        if (fa and fb and abs(fa - fb) <= 1.0
+                and abs(float(a["landSpace"]) - float(b["landSpace"])) <= 1.0):
+            return True
+        addr_a, addr_b = a.get("regRoadAddress") or "", b.get("regRoadAddress") or ""
+        if addr_a and addr_b:
+            return addr_a == addr_b
+        pa, pb = float(a["dealPrice"]), float(b["dealPrice"])
+        if round(pa) == round(pb) or (fa and fb and round(fa) == round(fb)):
+            return True
+        return (abs(pa - pb) <= 0.10 * max(pa, pb)
+                and (same_value(a, b, "approvalElapsedYear") or same_value(a, b, "groundTotalFloor")))
 
     dropped: set[str] = set()
-    for same in buckets.values():
-        if len(same) < 2:
-            continue
-        same.sort(key=lambda x: (x.get("partOfGroup") is None, str(x.get("articleNo"))))
-        kept: list[dict] = []
-        for a in same:
-            if any(_approx_distance_m(a, k) <= max_distance_m for k in kept):
-                dropped.add(str(a.get("articleNo")))
-            else:
-                kept.append(a)
-    return dropped
+    zoning_conflict: set[str] = set()
+    for group in by_gu.values():
+        group.sort(key=lambda x: (
+            x.get("partOfGroup") is None,
+            not is_dev_zone(x.get("regZoning")),
+            _safe_num(x.get("maxFar")) or 0,
+            float(x["dealPrice"]),
+            str(x.get("articleNo")),
+        ))
+        kept: dict[int, list[dict]] = {}     # 대지면적(㎡ 정수) → 남긴 매물
+        for a in group:
+            land = float(a["landSpace"])
+            tol = max(1.0, land * 0.01)
+            near = (k for bucket in range(int(land - tol), int(land + tol) + 1)
+                    for k in kept.get(bucket, ()) if abs(float(k["landSpace"]) - land) <= tol)
+            match = next((k for k in near if same_building(a, k)), None)
+            if match is None:
+                kept.setdefault(int(land), []).append(a)
+                continue
+            dropped.add(str(a.get("articleNo")))
+            if lookup_far(a.get("regZoning"))[0] != lookup_far(match.get("regZoning"))[0]:
+                zoning_conflict.add(str(match.get("articleNo")))
+    return dropped, zoning_conflict
+
+
+def find_same_building_duplicates(articles: Iterable[dict], max_distance_m: float = 50) -> set[str]:
+    """같은 건물이 여러 번 등재된 매물의 articleNo 집합 (남길 1건 제외). same_building_report 참고."""
+    return same_building_report(articles, max_distance_m)[0]
 
 
 def dedupe_by_address_min_price(articles: list[dict]) -> list[dict]:
@@ -253,10 +298,25 @@ def flatten_article(
     return out
 
 
+def rail_opened(open_date: Any, as_of: str | None) -> bool:
+    """개통 예정일이 기준일(YYYY-MM-DD)보다 앞선 달이면 True — 이미 개통했다고 본다.
+
+    open_date는 "2024.12", "2027-11", "2030" 같은 형태 (연도만 있으면 12월로 본다).
+    """
+    m = re.match(r"\s*(\d{4})(?:\D+(\d{1,2}))?", str(open_date or ""))
+    if not m or not as_of:
+        return False
+    opened = (int(m.group(1)), int(m.group(2) or 12))
+    return opened < (int(as_of[:4]), int(as_of[5:7]))
+
+
 def _apply_development(out: dict, development: dict | None) -> None:
     """development 응답에서 지구단위계획 + 미래역세권 요약을 out에 채움."""
     jigu_list = (development or {}).get("jiguList") or []
-    rail_list = (development or {}).get("railList") or []
+    # 수집 시점에 이미 개통한 역은 "개통 예정"에서 뺀다 (원본에 옛 예정일이 남아 있음)
+    today = date.today().isoformat()
+    rail_list = [r for r in (development or {}).get("railList") or []
+                 if not rail_opened(r.get("openDate"), today)]
 
     # 지구 (지구단위계획구역 우선)
     out["devJiguCount"] = len(jigu_list)
@@ -328,7 +388,7 @@ FAR_BY_ZONING: dict[str, dict[str, int]] = {
     "주거지역": {"max_far": 200},          # 광역 (전용+일반+준)
     "전용주거지역": {"max_far": 100},      # 보수적
     "준주거": {"max_far": 400},
-    "상업지역": {"max_far": 800},          # 광역 (중심/일반/근린/유통)
+    "상업지역": {"max_far": 800, "max_far_seoul_core": 600},   # 광역 (중심/일반/근린/유통) — 일반상업 기준
     "준공업": {"max_far": 400},
     "도시지역": {"max_far": 200},          # 도시지역 광역 — 보수적 (대부분 일반주거)
     # 복합 표기 (buildingRegistration이 ',' 로 여러 지역 줄 때) — 첫 항목 기준
@@ -366,6 +426,7 @@ def normalize_zoning(raw: str | None) -> str | None:
 # (FAR_BY_ZONING의 max_far_seoul_core). 경계 부근 수십 m 오차는 있을 수 있음.
 HANYANG_WALL: tuple[tuple[float, float], ...] = (
     (37.5600, 126.9753),  # 숭례문
+    (37.5633, 126.9718),  # 소의문 터 (서소문) — 숭례문~돈의문 직선보다 서쪽으로 나간다
     (37.5689, 126.9676),  # 돈의문 터
     (37.5850, 126.9577),  # 인왕산
     (37.5926, 126.9667),  # 창의문
@@ -423,7 +484,7 @@ def is_dev_zone(zoning: str | None) -> bool:
 #   1) 개발 연면적 (지상+지하) 평수 계산
 #   2) 평수 임계치로 호텔 등급 자동 분류 (3성/4성/5성)
 #   3) 등급별 프로필 적용 (전용율, 객실면적, ADR/Occ/F&B/GOP, 평당 공사비)
-#   4) ADR을 자치구 Tier multiplier로 보정 (위치 프리미엄)
+#   4) ADR을 자치구 Tier multiplier로 보정하고, 숙박 거점 역 반경 밖이면 보정율 하향
 #   5) 매출 = effective_ADR × Occ × 365 × 객실수 + F&B
 #   6) 수익(GOP) = 매출 × GOP 비율
 #   7) NOI = GOP − 운영사 fee − 재산세·보험 − FF&E reserve
@@ -446,8 +507,78 @@ GU_ADR_TIER: dict[str, float] = {
 }
 ADR_TIER_DEFAULT: float = 0.70
 
-# 자치구 ADR Tier별 호텔 매각(Exit) Cap Rate — prime일수록 낮음. 가정값.
+# ADR Tier별 호텔 매각(Exit) Cap Rate — prime일수록 낮음. 가정값.
 HOTEL_EXIT_CAP_BY_TIER: dict[int, float] = {1: 0.050, 2: 0.058, 3: 0.065, 4: 0.072}
+
+# ── 입지 보정: 핵심 역세권 ──────────────────────────────────────────────
+# 자치구 단위 가정(호텔 ADR Tier, 오피스 권역)만 쓰면 같은 구의 변두리 동에도 핵심지
+# 값이 들어가, 땅값이 싼 변두리 부지가 순위 상단을 차지한다. 그래서 역 좌표 기준
+# 반경으로 한 번 더 나눈다. (이름, 위도, 경도) — 반경은 DevAssumptions.
+#
+# 숙박 수요 거점 — 관광·비즈니스 호텔이 실제로 모여 있는 곳. 반경 밖이면 ADR 보정율을
+# hotel_off_hub_adr_step만큼 낮춘다 (Tier 4 구는 60%까지 내려간다).
+HOTEL_HUBS: tuple[tuple[str, float, float], ...] = (
+    ("명동", 37.5609, 126.9864), ("을지로입구", 37.5659, 126.9826), ("시청", 37.5655, 126.9771),
+    ("광화문", 37.5716, 126.9769), ("종각", 37.5702, 126.9832), ("종로3가", 37.5704, 126.9923),
+    ("안국", 37.5768, 126.9862), ("회현", 37.5587, 126.9784), ("서울역", 37.5547, 126.9707),
+    ("충무로", 37.5612, 126.9941), ("을지로3가", 37.5663, 126.9925),
+    ("동대문역사문화공원", 37.5653, 127.0079), ("동대문", 37.5705, 127.0095),
+    ("홍대입구", 37.5570, 126.9252), ("합정", 37.5494, 126.9137), ("신촌", 37.5552, 126.9369),
+    ("공덕", 37.5437, 126.9508), ("이태원", 37.5345, 126.9944), ("용산", 37.5299, 126.9648),
+    ("강남", 37.4979, 127.0276), ("신논현", 37.5043, 127.0245), ("역삼", 37.5006, 127.0364),
+    ("선릉", 37.5045, 127.0490), ("삼성", 37.5088, 127.0631), ("신사", 37.5161, 127.0195),
+    ("논현", 37.5110, 127.0214), ("잠실", 37.5132, 127.1001),
+    ("여의도", 37.5217, 126.9243), ("국회의사당", 37.5280, 126.9180), ("여의나루", 37.5269, 126.9325),
+    ("영등포", 37.5154, 126.9069),
+    ("성수", 37.5446, 127.0561), ("뚝섬", 37.5472, 127.0474), ("서울숲", 37.5436, 127.0446),
+    ("건대입구", 37.5404, 127.0701),
+    ("구로디지털단지", 37.4853, 126.9016), ("신도림", 37.5090, 126.8914),
+)
+
+# 오피스 권역 핵심 — 해당 자치구 안에서 반경 안이면 그 권역 NOC·매각 Cap, 밖이면 '기타'.
+# (구 조건을 함께 보는 이유: 반경만 쓰면 구 경계 너머 동네까지 권역으로 잡힌다.)
+OFFICE_CORES: dict[str, tuple[tuple[str, float, float], ...]] = {
+    "CBD": (
+        ("광화문", 37.5716, 126.9769), ("종각", 37.5702, 126.9832), ("종로3가", 37.5704, 126.9923),
+        ("시청", 37.5655, 126.9771), ("을지로입구", 37.5659, 126.9826),
+        ("을지로3가", 37.5663, 126.9925), ("명동", 37.5609, 126.9864),
+        ("회현", 37.5587, 126.9784), ("서울역", 37.5547, 126.9707),
+    ),
+    "GBD": (
+        ("강남", 37.4979, 127.0276), ("역삼", 37.5006, 127.0364), ("선릉", 37.5045, 127.0490),
+        ("삼성", 37.5088, 127.0631), ("신논현", 37.5043, 127.0245), ("논현", 37.5110, 127.0214),
+        ("신사", 37.5161, 127.0195), ("교대", 37.4937, 127.0137),
+        ("언주", 37.5073, 127.0339), ("선정릉", 37.5103, 127.0439),
+        ("삼성중앙", 37.5131, 127.0535), ("봉은사", 37.5142, 127.0602),
+        ("학동", 37.5140, 127.0308), ("강남구청", 37.5172, 127.0413),
+    ),
+}
+# YBD는 여의도동 전체 (섬이라 반경보다 동 경계가 정확하다)
+YBD_SECTOR = "여의도동"
+
+
+def _dist_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """두 좌표 사이 거리 (m) — 서울 위도 기준 평면 근사."""
+    dlat = (lat1 - lat2) * 111_000
+    dlon = (lon1 - lon2) * 88_000
+    return (dlat * dlat + dlon * dlon) ** 0.5
+
+
+def nearest_anchor(lat: Any, lon: Any,
+                   anchors: Iterable[tuple[str, float, float]]) -> tuple[str | None, float | None]:
+    """가장 가까운 기준점 (이름, 거리 m). 좌표가 없으면 (None, None)."""
+    y, x = _num_or_none(lat), _num_or_none(lon)
+    if y is None or x is None:
+        return None, None
+    name, d = min(((n, _dist_m(y, x, alat, alon)) for n, alat, alon in anchors), key=lambda t: t[1])
+    return name, d
+
+
+def _tier_of(mult: float) -> int:
+    if mult >= 1.00: return 1
+    if mult >= 0.90: return 2
+    if mult >= 0.80: return 3
+    return 4
 
 
 def get_adr_tier(division_name: str | None) -> tuple[float, int]:
@@ -456,15 +587,25 @@ def get_adr_tier(division_name: str | None) -> tuple[float, int]:
     >>> get_adr_tier("강남구")  → (1.0, 1)
     >>> get_adr_tier("동작구")  → (0.70, 4)
     """
-    if not division_name:
-        return ADR_TIER_DEFAULT, 4
-    mult = GU_ADR_TIER.get(division_name)
-    if mult is None:
-        return ADR_TIER_DEFAULT, 4
-    if mult >= 1.00: return mult, 1
-    if mult >= 0.90: return mult, 2
-    if mult >= 0.80: return mult, 3
-    return mult, 4
+    mult = GU_ADR_TIER.get(division_name or "", ADR_TIER_DEFAULT)
+    return mult, _tier_of(mult)
+
+
+def hotel_location(division_name: str | None, lat: Any, lon: Any,
+                   hub_radius_m: float, off_hub_step: float,
+                   ) -> tuple[float, int, str | None, float | None]:
+    """호텔 입지 → (ADR 보정율, Tier, 거점 이름, 가장 가까운 거점까지 거리 m).
+
+    자치구 Tier에서 출발해, 숙박 수요 거점 반경 밖이면 보정율을 off_hub_step만큼
+    낮춘다. 거점 이름은 반경 안일 때만 채운다. 좌표가 없으면 반경을 확인할 수 없으므로
+    거점 밖으로 본다.
+    """
+    mult, _ = get_adr_tier(division_name)
+    hub, dist = nearest_anchor(lat, lon, HOTEL_HUBS)
+    if dist is None or dist > hub_radius_m:
+        mult = round(mult - off_hub_step, 4)
+        hub = None
+    return mult, _tier_of(mult), hub, dist
 
 @dataclass
 class HotelGradeProfile:
@@ -478,19 +619,21 @@ class HotelGradeProfile:
     construction_cost_per_pyeong_M: float  # 평당 공사비 (백만/평)
 
 
-# 등급별 기본값 (사용자 정의)
+# 등급별 기본값 (사용자 정의).
+# 전용률은 지상 연면적 중 객실이 차지하는 비율 — 로비·복도·코어·부대시설을 빼고 남는 몫.
+# 지하를 포함한 객실당 연면적으로 환산하면 약 35㎡(3성) / 54㎡(4성) / 89㎡(5성).
 _DEFAULT_GRADE_3 = HotelGradeProfile(
-    exclusive_ratio=0.80, room_area_sqm=20.0,
+    exclusive_ratio=0.62, room_area_sqm=20.0,
     adr_10k=15.0, occupancy=0.87, fnb_ratio=0.10,
     gop_ratio=0.50, construction_cost_per_pyeong_M=12.0,
 )
 _DEFAULT_GRADE_4 = HotelGradeProfile(
-    exclusive_ratio=0.70, room_area_sqm=25.0,
+    exclusive_ratio=0.50, room_area_sqm=25.0,
     adr_10k=20.0, occupancy=0.85, fnb_ratio=0.15,
     gop_ratio=0.45, construction_cost_per_pyeong_M=14.0,
 )
 _DEFAULT_GRADE_5 = HotelGradeProfile(
-    exclusive_ratio=0.50, room_area_sqm=33.0,
+    exclusive_ratio=0.40, room_area_sqm=33.0,
     adr_10k=40.0, occupancy=0.80, fnb_ratio=0.30,
     gop_ratio=0.375, construction_cost_per_pyeong_M=18.0,
 )
@@ -504,17 +647,36 @@ _DEFAULT_GRADE_5 = HotelGradeProfile(
 # NOC(Net Occupancy Cost)는 임차인이 전용평당 실제 부담하는 월 비용(임대료+관리비,
 # 렌트프리 반영). ⚠️ 권역별 NOC·매각 Cap은 가정값 — config에서 검토/수정.
 
-# 자치구 → 오피스 권역
+# 자치구 → 그 구에 핵심이 있는 오피스 권역 (YBD는 여의도동으로 따로 본다)
 GU_OFFICE_MARKET: dict[str, str] = {
     "중구": "CBD", "종로구": "CBD",
     "강남구": "GBD", "서초구": "GBD",
-    "영등포구": "YBD", "마포구": "YBD",
 }
 OFFICE_MARKET_DEFAULT = "기타"
 
 
 def get_office_market(division_name: str | None) -> str:
+    """자치구 → 그 구에 핵심 역이 있는 권역 이름 (없으면 '기타'). 실제 권역 판정은 office_location."""
     return GU_OFFICE_MARKET.get(division_name or "", OFFICE_MARKET_DEFAULT)
+
+
+def office_location(division_name: str | None, sector_name: str | None, lat: Any, lon: Any,
+                    core_radius_m: float) -> tuple[str, str | None, float | None]:
+    """오피스 입지 → (권역, 핵심 역 이름, 그 권역 핵심 역까지 거리 m).
+
+    CBD·GBD는 해당 자치구 안에서 핵심 역 반경 안일 때만, YBD는 여의도동만 인정하고
+    그 밖은 '기타' — 같은 구라도 업무지구에서 떨어진 동에 프라임 NOC를 주지 않기 위함.
+    좌표가 없으면 반경을 확인할 수 없으므로 '기타'.
+    """
+    if sector_name == YBD_SECTOR:
+        return "YBD", "여의도", None
+    market = get_office_market(division_name)
+    if market == OFFICE_MARKET_DEFAULT:
+        return OFFICE_MARKET_DEFAULT, None, None
+    name, d = nearest_anchor(lat, lon, OFFICE_CORES[market])
+    if d is not None and d <= core_radius_m:
+        return market, name, d
+    return OFFICE_MARKET_DEFAULT, None, d
 
 
 @dataclass
@@ -607,6 +769,19 @@ class DevAssumptions:
     min_bldg_per_pyeong_M: float = 5.0     # 500만원/평
     # 상업지역 토지 평당가 하한 — 서울 핵심 구 상업지역에서 이보다 싸면 면적·호가 입력 오류로 봄
     min_commercial_land_per_pyeong_M: float = 40.0   # 4,000만원/평
+    # 대지면적이 소재 필지 면적의 이 비율 미만 → 큰 필지의 지분·호실 매물로 봄
+    min_parcel_share: float = 0.5
+    # 현재 건물 연면적 ÷ 개발 가능 연면적이 이 값 이상 → 새로 지어도 면적이 1.5배가 안 됨 (신축 실익 부족)
+    max_existing_gfa_ratio: float = 0.67
+    # 준공 new_building_years년차 미만이고 이미 new_building_gfa_ratio 이상 지어진 건물은
+    # 아직 쓸 만한 중층 건물 → 철거 대상 아님 (예: 20년차 13층 건물을 1.5배 지으려고 헐지 않는다)
+    new_building_years: float = 30
+    new_building_gfa_ratio: float = 0.5
+
+    # 입지 보정 — 자치구 단위 가정을 핵심 역세권 여부로 한 번 더 나눈다 (HOTEL_HUBS / OFFICE_CORES)
+    hotel_hub_radius_m: float = 800      # 숙박 수요 거점 역 반경
+    hotel_off_hub_adr_step: float = 0.10 # 거점 밖이면 ADR 보정율을 이만큼 낮춤
+    office_core_radius_m: float = 700    # 권역 핵심 역 반경 — 밖이면 '기타' 권역
 
     # GOP → NOI 차감 항목 (USALI 기준 — 호텔 Cap Rate는 NOI 기준으로 거래됨)
     #   NOI = GOP − 운영사 base fee − incentive fee − 재산세·보험 − FF&E reserve
@@ -652,6 +827,9 @@ class DevAssumptions:
             "max_land_pyeong",
             "min_land_per_pyeong_M", "max_land_per_pyeong_M", "min_bldg_per_pyeong_M",
             "min_commercial_land_per_pyeong_M",
+            "min_parcel_share", "max_existing_gfa_ratio",
+            "new_building_years", "new_building_gfa_ratio",
+            "hotel_hub_radius_m", "hotel_off_hub_adr_step", "office_core_radius_m",
             "mgmt_fee_base", "mgmt_fee_incentive", "property_tax_rate", "ff_e_reserve",
         }
         kwargs: dict[str, Any] = {k: v for k, v in section.items() if k in flat_keys}
@@ -688,12 +866,13 @@ _METRIC_KEYS = (
     "hotelCostConstructionM", "hotelCostIncidentalM", "hotelCostFinanceM",
     "devExclusivePyeong", "devExclusiveRate", "devRoomCount", "devRoomAreaSqm",
     "costPerRoomM",
-    "adr10k", "adrTier", "adrMultiplier", "adrBase10k",
+    "adr10k", "adrTier", "adrMultiplier", "adrBase10k", "hotelHub", "hotelHubDistanceM",
     "occupancy", "fnbRatio", "gopRatio",
     "roomRevenueAnnualM", "fnbRevenueAnnualM", "totalRevenueAnnualM",
     "gopAnnualM", "annualRevM", "gopYield",
     # 오피스
-    "officeClass", "officeMarket", "officeCapRate", "officeNoiAnnualM",
+    "officeClass", "officeMarket", "officeCore", "officeCoreDistanceM",
+    "officeCapRate", "officeNoiAnnualM",
     "officeCostTotalM", "officeCostConstructionM", "officeCostIncidentalM",
     "officeCostFinanceM", "officeExclusivePyeong", "officeLeasablePyeong", "officeNoc10k",
     "officeVacancy", "officeRevenueAnnualM", "officeOpexAnnualM", "officeExitCap",
@@ -737,9 +916,15 @@ def _hotel_metrics(out: dict, a: DevAssumptions, purchase_M: float,
     out["hotelCostTotalM"] = round(cost_total, 2)
     out["costPerRoomM"] = round(cost_total / n_rooms, 2) if n_rooms else None
 
-    # ADR 위치 프리미엄 — 등급 profile의 ADR은 Tier 1(마포/종로/중구/강남) 기준
-    adr_mult, adr_tier = get_adr_tier(out.get("divisionName"))
+    # ADR 위치 프리미엄 — 등급 profile의 ADR은 Tier 1(마포/종로/중구/강남) 기준.
+    # 숙박 수요 거점 반경 밖이면 보정율을 낮춘다.
+    adr_mult, adr_tier, hub, hub_dist = hotel_location(
+        out.get("divisionName"), out.get("latitude"), out.get("longitude"),
+        a.hotel_hub_radius_m, a.hotel_off_hub_adr_step,
+    )
     effective_adr = profile.adr_10k * adr_mult
+    out["hotelHub"] = hub
+    out["hotelHubDistanceM"] = round(hub_dist) if hub_dist is not None else None
 
     # 매출 (만원/년 → 백만원)
     room_rev_10k = effective_adr * profile.occupancy * 365 * n_rooms
@@ -779,7 +964,10 @@ def _office_metrics(out: dict, a: DevAssumptions, purchase_M: float,
     o = a.office
     if dev_total_py < o.min_total_pyeong:
         return
-    market_name = get_office_market(out.get("divisionName"))
+    market_name, core, core_dist = office_location(
+        out.get("divisionName"), out.get("sectorName"),
+        out.get("latitude"), out.get("longitude"), a.office_core_radius_m,
+    )
     mkt = o.market(market_name)
 
     exclusive_py = dev_total_py * o.exclusive_ratio
@@ -794,6 +982,8 @@ def _office_metrics(out: dict, a: DevAssumptions, purchase_M: float,
 
     out["officeClass"] = o.size_class(dev_total_py)
     out["officeMarket"] = market_name
+    out["officeCore"] = core
+    out["officeCoreDistanceM"] = round(core_dist) if core_dist is not None else None
     out["officeExclusivePyeong"] = round(exclusive_py, 2)
     out["officeLeasablePyeong"] = round(leasable_py, 2)
     out["officeNoc10k"] = mkt.noc_10k
@@ -920,6 +1110,78 @@ def compute_dev_metrics(article: dict, assumptions: DevAssumptions, use: str = "
     return select_use(out, use)
 
 
+def data_issue(article: dict, assumptions: DevAssumptions) -> str | None:
+    """매물 자체의 데이터 이상 사유 (없으면 None). compute_dev_metrics 결과를 받는다.
+
+    단일 매물 표시 여부와, 통합그룹에 합산할 멤버 선별에 같은 기준을 쓴다 —
+    호가·면적이 잘못된 필지가 합필에 섞이면 그룹 전체 Cap이 부풀려진다.
+    """
+    lpp = _safe_num(article.get("landPerPyeongM"))
+    if lpp and (
+        lpp < assumptions.min_land_per_pyeong_M
+        or lpp > assumptions.max_land_per_pyeong_M
+    ):
+        return f"평당가 이상치 ({lpp:.0f} 백만/평)"
+
+    # 상업지역인데 토지 평당가가 지나치게 낮음 → 대지면적·호가 입력 오류 (예: ㎡·평 뒤바뀜)
+    zoning = normalize_zoning(article.get("regZoning")) or ""
+    if lpp and "상업지역" in zoning and lpp < assumptions.min_commercial_land_per_pyeong_M:
+        return f"상업지역 평당가 이상치 ({lpp:.0f} 백만/평)"
+
+    if article.get("isCombinedDevelopment"):
+        return None
+
+    # 건물 평당가가 비정상적으로 낮음 → 큰 건물의 호실·지분만 올라온 매물
+    bpp = _safe_num(article.get("bldgPerPyeongM"))
+    if bpp and bpp < assumptions.min_bldg_per_pyeong_M:
+        return f"호실·지분 매물 의심 (건물 {bpp:.1f} 백만/평)"
+
+    # 대지면적이 소재 필지보다 훨씬 작음 → 단지·집합건물의 대지지분
+    land, parcel = _safe_num(article.get("landSpace")), _safe_num(article.get("parcelAreaM2"))
+    if land and parcel and land < parcel * assumptions.min_parcel_share:
+        return f"대지지분 매물 의심 (대지 {land:.0f}㎡ / 필지 {parcel:.0f}㎡)"
+    return None
+
+
+def existing_gfa_sqm(article: dict) -> float:
+    """현재 건물 연면적 추정 (㎡). 없으면 0.
+
+    매물에 적힌 연면적과 건축물대장 용적률로 역산한 지상 연면적(대지 × 용적률) 중 큰 값.
+    매물 연면적이 실제보다 작게 올라온 경우(일부 층·전용면적만 기재)를 보완한다.
+    통합그룹은 API가 멤버 합계를 existingGfaSqm으로 넣어 준다.
+    """
+    pre = _safe_num(article.get("existingGfaSqm"))
+    if pre:
+        return pre
+    floor = _safe_num(article.get("floorSpace"))
+    land, far = _safe_num(article.get("landSpace")), _safe_num(article.get("regFloorAreaRatio"))
+    by_far = land * far / 100 if land and 0 < far <= 1500 else 0.0
+    return max(floor, by_far)
+
+
+def redevelopment_issue(article: dict, assumptions: DevAssumptions, as_member: bool = False) -> str | None:
+    """철거 후 신축이 성립하지 않는 사유 (없으면 None). 단일 매물·통합그룹 대상.
+
+    as_member=True는 합필에 넣을 필지를 고를 때 — 작은 필지의 낡은 건물은 제 필지
+    기준으로는 꽉 차 보여도 합필 대상이 되므로, 제 필지 용적을 다 채운 건물(100% 이상)과
+    신축만 뺀다. 합친 뒤의 실익은 그룹 단위로 다시 본다.
+    """
+    existing = existing_gfa_sqm(article) * assumptions.sqm_to_pyeong
+    dev = _safe_num(article.get("devTotalPyeong"))
+    if not existing or not dev:
+        return None
+    ratio = existing / dev
+    if ratio >= (1.0 if as_member else assumptions.max_existing_gfa_ratio):
+        return f"현재 건물이 이미 개발 가능 연면적의 {ratio:.0%} (신축 실익 부족)"
+    if article.get("isCombinedDevelopment"):
+        return None
+    age = _num_or_none(article.get("approvalElapsedYear"))
+    if (age is not None and age < assumptions.new_building_years
+            and ratio >= assumptions.new_building_gfa_ratio):
+        return f"준공 {age:.0f}년차 건물이 개발 가능 연면적의 {ratio:.0%} 사용 중 (철거 실익 부족)"
+    return None
+
+
 def apply_show_filter(article: dict, assumptions: DevAssumptions, any_use: bool = False) -> dict:
     """isShown 결정.
 
@@ -953,34 +1215,11 @@ def apply_show_filter(article: dict, assumptions: DevAssumptions, any_use: bool 
         article["shownReason"] = f"대지면적 초과 ({land_py:.0f}평 > {assumptions.max_land_pyeong:.0f}평)"
         return article
 
-    # 토지 평당가 이상치 — 양 끝 모두 컷 (config로 조정 가능)
-    lpp = article.get("landPerPyeongM")
-    try:
-        lpp_f = float(lpp) if lpp is not None else None
-    except (TypeError, ValueError):
-        lpp_f = None
-    if lpp_f is not None and (
-        lpp_f < assumptions.min_land_per_pyeong_M
-        or lpp_f > assumptions.max_land_per_pyeong_M
-    ):
+    # 평당가 이상치 · 호실/지분 매물 — 단일·멤버·통합그룹 공통
+    issue = data_issue(article, assumptions)
+    if issue:
         article["isShown"] = False
-        article["shownReason"] = f"평당가 이상치 ({lpp_f:.0f} 백만/평)"
-        return article
-
-    # 상업지역인데 토지 평당가가 지나치게 낮음 → 대지면적·호가 입력 오류 (예: ㎡·평 뒤바뀜)
-    zoning = normalize_zoning(article.get("regZoning")) or ""
-    if (lpp_f is not None and "상업지역" in zoning
-            and lpp_f < assumptions.min_commercial_land_per_pyeong_M):
-        article["isShown"] = False
-        article["shownReason"] = f"상업지역 평당가 이상치 ({lpp_f:.0f} 백만/평)"
-        return article
-
-    # 건물 평당가가 비정상적으로 낮음 → 큰 건물의 호실·지분만 올라온 매물 (통합그룹 제외)
-    bpp = article.get("bldgPerPyeongM")
-    if (not article["isCombinedDevelopment"] and bpp is not None
-            and float(bpp) < assumptions.min_bldg_per_pyeong_M):
-        article["isShown"] = False
-        article["shownReason"] = f"호실·지분 매물 의심 (건물 {float(bpp):.1f} 백만/평)"
+        article["shownReason"] = issue
         return article
 
     # 통합 그룹의 멤버는 자기 단독 등급 무관하게 표시
@@ -994,6 +1233,13 @@ def apply_show_filter(article: dict, assumptions: DevAssumptions, any_use: bool 
         article["shownReason"] = article.get("hotelGrade") or "시뮬 불가"
         return article
 
+    # 이미 꽉 채워 지어졌거나 갓 지은 건물 → 개발 후보가 아님
+    issue = redevelopment_issue(article, assumptions)
+    if issue:
+        article["isShown"] = False
+        article["shownReason"] = issue
+        return article
+
     article["isShown"] = True
     article["shownReason"] = dev_class
     return article
@@ -1005,6 +1251,14 @@ def _safe_num(v) -> float:
         return float(v) if v is not None else 0.0
     except (TypeError, ValueError):
         return 0.0
+
+
+def _num_or_none(v) -> float | None:
+    """숫자면 float, 없거나 비숫자면 None (0과 결측을 구분해야 할 때)."""
+    try:
+        return float(v) if v not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
 
 
 def _won_to_10k(v) -> int:

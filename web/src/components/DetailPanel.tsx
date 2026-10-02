@@ -118,7 +118,7 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
         (a.outlierFlags && a.outlierFlags.length > 0)) && (
         <div className="flex flex-wrap gap-1 mb-3">
           {a.isNew && (
-            <span className="px-1.5 py-0.5 rounded text-[12px] font-semibold bg-good-soft text-good" title="이전 스냅샷 이후 새로 나온 매물">
+            <span className="px-1.5 py-0.5 rounded text-[12px] font-semibold bg-good-soft text-good" title="이전 조사 때는 없던 매물 (같은 위치·대지면적 기준)">
               신규
             </span>
           )}
@@ -241,6 +241,7 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
         <Expander title="임대 / 수익 (연간, 안정화)" defaultOpen={false}>
           <div className="text-[13.5px] text-ink-2 space-y-1">
             <Row label="권역 · NOC" val={`${a.officeMarket} · ${a.officeNoc10k}만원/전용평/월`} />
+            <Row label="권역 기준" val={officeLocationText(a)} />
             <Row label="전용면적" val={`${Math.round(a.officeExclusivePyeong ?? 0).toLocaleString()}평`} />
             <Row label="임대면적 (= 연면적)" val={`${Math.round(a.officeLeasablePyeong ?? 0).toLocaleString()}평`} />
             {(a.officeVacancy ?? 0) > 0 && (
@@ -272,6 +273,13 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
                 </span>
               )}
             </div>
+            {a.hotelHubDistanceM != null && (
+              <div className="text-[13px] text-muted">
+                {a.hotelHub
+                  ? `숙박 거점 ${a.hotelHub}역 ${Math.round(a.hotelHubDistanceM).toLocaleString()}m`
+                  : `숙박 거점 밖 (가장 가까운 거점 ${(a.hotelHubDistanceM / 1000).toFixed(1)}km) · ADR 보정율 10%p 하향`}
+              </div>
+            )}
             <div>Occupancy: <b>{Math.round((a.occupancy ?? 0) * 100)}%</b></div>
             <div>
               F&B 비율: {Math.round((a.fnbRatio ?? 0) * 100)}% · GOP 마진:{" "}
@@ -328,7 +336,8 @@ export default function DetailPanel({ selectedAid, onNavigate }: Props) {
           )}
           {a.devNearestRailStation && (
             <div className="text-[14px] text-ink-2">
-              <b>{a.devNearestRailStation}</b> ({a.devNearestRailLine ?? ""}) ·{" "}
+              {/* 원본 역 이름 끝의 "(2027년11월예정)"은 뒤의 개통일과 겹치므로 뗀다 */}
+              <b>{a.devNearestRailStation.replace(/\s*\([^)]*예정\)\s*$/, "")}</b> ({a.devNearestRailLine ?? ""}) ·{" "}
               {a.devNearestRailDistanceM ? `${Math.round(a.devNearestRailDistanceM)}m` : "—"} · 도보{" "}
               {a.devNearestRailWalkMin ? `${Math.round(a.devNearestRailWalkMin)}분` : "—"}
               {a.devNearestRailOpenDate && (
@@ -684,7 +693,7 @@ function FeasibilitySection({
                     }
                   />
                   <AssumeNum
-                    label={isOffice ? "Exit Cap (권역별 자동)" : "Exit Cap (자치구 Tier 자동)"}
+                    label={isOffice ? "Exit Cap (권역별 자동)" : "Exit Cap (입지 Tier 자동)"}
                     value={assumptions.exit_cap ?? result?.exit_cap_used ?? 0.06}
                     min={0.03}
                     max={0.10}
@@ -737,7 +746,7 @@ function FeasibilitySection({
               {/* cash flow chart (간단 bar) */}
               <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--dash-border)" }}>
                 <div className="text-[12px] text-muted mb-1">
-                  연도별 unlevered cash flow (백만원)
+                  연도별 현금흐름 (Unlevered) · 빨강 지출, 초록 수입
                 </div>
                 <CashFlowBars flows={result.cash_flows_M} />
               </div>
@@ -820,25 +829,28 @@ function AssumeNum({
 function CashFlowBars({ flows }: { flows: number[] }) {
   const max = Math.max(...flows.map(Math.abs), 1);
   return (
-    <div className="flex items-end gap-0.5 h-10">
+    <div className="flex gap-0.5">
       {flows.map((cf, i) => {
-        const h = (Math.abs(cf) / max) * 100;
+        // 막대 영역 높이를 고정해야 % 높이가 먹는다. 0이 아닌 값은 최소 2px로 보이게.
+        const h = cf === 0 ? 0 : Math.max((Math.abs(cf) / max) * 100, 5);
         const isNeg = cf < 0;
         return (
           <div
             key={i}
-            className="flex-1 flex flex-col items-center justify-end relative group"
-            title={`Year ${i}: ${cf >= 0 ? "+" : ""}${cf.toFixed(0)} 백만`}
+            className="flex-1 min-w-0"
+            title={`${i}년차: ${cf >= 0 ? "+" : "−"}${Math.abs(cf / 100).toFixed(1)}억`}
           >
-            <div
-              className="w-full rounded-sm"
-              style={{
-                height: `${h}%`,
-                background: isNeg ? "#ef4444" : "var(--color-good)",
-                opacity: 0.85,
-              }}
-            />
-            <div className="text-[12px] text-faint mt-0.5">{i}</div>
+            <div className="h-10 flex items-end">
+              <div
+                className="w-full rounded-sm"
+                style={{
+                  height: `${h}%`,
+                  background: isNeg ? "var(--color-bad)" : "var(--color-good)",
+                  opacity: 0.85,
+                }}
+              />
+            </div>
+            <div className="num text-[12px] text-faint text-center mt-0.5">{i}</div>
           </div>
         );
       })}
@@ -883,6 +895,8 @@ const OUTLIER_LABELS: Record<string, { text: string; tip: string }> = {
   price_low: { text: "평당가 하위 5% · 면적·호가 확인", tip: "토지 평당가가 하위 5% — 대지면적이나 호가 입력 오류일 수 있어요" },
   cap_high: { text: "취득 Cap 10% 초과 · 데이터 확인", tip: "서울 신축 기준으로 드문 수준이에요. 호가·대지면적·용도지역을 원본에서 확인해 보세요" },
   zone_unfit: { text: "신축 불가 용도지역", tip: "일반주거·전용주거 등 호텔·대형 오피스 신축이 어려운 용도지역이라 참고용이에요" },
+  zone_conflict: { text: "용도지역 확인 필요", tip: "같은 건물이 다른 용도지역으로도 올라와 있어요. 토지이용계획에서 용도지역을 확인해 보세요" },
+  area_mismatch: { text: "대지면적 확인 필요", tip: "매물에 적힌 대지면적이 지도에 그려진 필지와 달라요. 여러 필지를 묶은 매물이면 지도에는 일부만 표시돼요" },
 };
 
 /** 선택 전 — 현재 조건의 후보 요약과 읽는 법. */
@@ -1118,7 +1132,7 @@ function BuildingStatus({ article }: { article: Article }) {
     rows.push([
       "준공일",
       a.approvalElapsedYear
-        ? `${approval} (${a.approvalElapsedYear}년 경과)`
+        ? `${approval} (${a.approvalElapsedYear}년차)`
         : approval,
     ]);
   }
@@ -1143,9 +1157,15 @@ function BuildingStatus({ article }: { article: Article }) {
     ]);
   }
   if (a.totalPyeong) {
+    // 매물 연면적이 건축물대장 용적률(지상)보다 한참 작으면 일부만 적힌 것 — 대장 기준 값을 같이 보여 준다
+    const byRegistry = a.regFloorAreaRatio && a.landSpace && !a.isCombinedDevelopment
+      ? (a.landSpace * a.regFloorAreaRatio) / 100
+      : 0;
+    const understated = byRegistry > (a.floorSpace ?? 0) * 1.2;
     rows.push([
       "연면적 (현재)",
-      `${Math.round(a.totalPyeong).toLocaleString()} 평 (${Math.round(a.floorSpace ?? 0).toLocaleString()}㎡)`,
+      `${Math.round(a.totalPyeong).toLocaleString()} 평 (${Math.round(a.floorSpace ?? 0).toLocaleString()}㎡)` +
+        (understated ? ` · 대장 용적률 기준 지상 약 ${Math.round(byRegistry * 0.3025).toLocaleString()}평` : ""),
     ]);
   }
 
@@ -1328,6 +1348,18 @@ function ZoningSwatch({ zoning }: { zoning: string }) {
       aria-hidden="true"
     />
   );
+}
+
+/** 오피스 권역 판정 근거 — 핵심 역까지 거리 또는 권역 밖 안내. */
+function officeLocationText(a: Article): string {
+  if (a.officeMarket === "YBD") return "여의도동";
+  if (a.officeCore && a.officeCoreDistanceM != null) {
+    return `${a.officeCore}역 ${Math.round(a.officeCoreDistanceM).toLocaleString()}m`;
+  }
+  if (a.officeCoreDistanceM != null) {
+    return `핵심 역에서 ${(a.officeCoreDistanceM / 1000).toFixed(1)}km — 권역 밖`;
+  }
+  return "업무 권역 밖";
 }
 
 function Row({

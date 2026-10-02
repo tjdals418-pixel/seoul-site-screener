@@ -6,7 +6,9 @@
   3) 시뮬 대상이 될 수 없는 초소형 매물을 걸러
 gzip JSON으로 저장한다. 이 파일만 git에 포함되어 배포 환경의 유일한 데이터가 된다.
 
-이전 snapshot(data/snapshots/)이 있으면 가격 변동/신규 표시용 prevPrices도 함께 담는다.
+이전 snapshot(data/snapshots/)이 있으면 가격 변동/신규 표시용 prevPrices도 함께 담는다
+(현재 매물번호 → 이전 snapshot에서 같은 건물의 호가. 매물번호는 재등록 때마다 바뀌므로
+위치·면적으로 맞춘다).
 
 사용:
     python scripts/export_public.py
@@ -26,7 +28,7 @@ from app.data import (  # noqa: E402
     DATA_PATH,
     PUBLIC_DATA_PATH,
     find_previous_snapshot,
-    snapshot_prices,
+    match_previous_prices,
     strip_private,
 )
 from app.schemas import Article  # noqa: E402
@@ -70,8 +72,8 @@ def main() -> None:
     prev = find_previous_snapshot(generated_at)
     prev_prices: dict[str, float] = {}
     if prev is not None:
-        keep_ids = {str(a.get("articleNo")) for a in articles}
-        prev_prices = {k: v for k, v in snapshot_prices(prev).items() if k in keep_ids}
+        previous = json.loads(prev.read_text(encoding="utf-8")).get("articles") or []
+        prev_prices = match_previous_prices(articles, previous)
 
     out = {
         "generatedAt": generated_at,

@@ -60,7 +60,9 @@ export default function AboutModal({
               </li>
               <li>
                 <b className="text-ink">호텔</b>: 연면적으로 3·4·5성급을 나누고 ADR × 점유율 × 객실수로
-                매출 → GOP → NOI (운영사 수수료, FF&amp;E 적립, 재산세 차감)
+                매출 → GOP → NOI (운영사 수수료, FF&amp;E 적립, 재산세 차감). 객실수는 객실당 연면적
+                약 35㎡(3성)·54㎡(4성) 기준이고, ADR은 자치구별 보정율(100~70%)을 곱한 뒤 숙박 거점 역
+                800m 밖이면 10%p 더 낮춥니다(최저 60%).
               </li>
               <li>
                 <b className="text-ink">오피스</b>: 전용면적(연면적 × 50%) × 권역별 NOC × 12 − 임대면적 ×
@@ -80,10 +82,10 @@ export default function AboutModal({
             <h3 className="text-xs font-semibold text-muted tracking-wide mb-2">권역 구분 (오피스)</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-line border border-line rounded overflow-hidden text-[13.5px]">
               {[
-                ["CBD", "중구 · 종로구"],
-                ["GBD", "강남구 · 서초구"],
-                ["YBD", "영등포구 · 마포구"],
-                ["기타", "그 외 자치구"],
+                ["CBD", "종로·중구의 광화문·종로·을지로·시청·서울역 일대"],
+                ["GBD", "강남·서초구의 테헤란로·강남대로 일대"],
+                ["YBD", "여의도동"],
+                ["기타", "그 밖 전부"],
               ].map(([k, v]) => (
                 <div key={k} className="bg-surface px-3 py-2">
                   <div className="font-mono text-[12px] text-muted">{k}</div>
@@ -91,6 +93,10 @@ export default function AboutModal({
                 </div>
               ))}
             </div>
+            <p className="mt-2 text-[13px] text-muted">
+              CBD·GBD는 핵심 역에서 700m 안일 때만 인정합니다. 같은 구라도 업무지구에서 떨어진
+              곳은 &lsquo;기타&rsquo; NOC로 계산합니다.
+            </p>
           </section>
 
           <section>
@@ -100,6 +106,11 @@ export default function AboutModal({
                 매물: 네이버부동산에 공개된 매매 호가
                 {meta?.data_as_of && <> (기준일 <span className="num">{meta.data_as_of}</span>)</>}. 실거래가가 아닙니다.
               </li>
+              <li>
+                후보에서 빼는 매물: 호가·면적 입력 오류로 보이는 것, 큰 건물·단지의 호실·지분, 같은
+                건물 중복 등재, 현재 건물이 이미 개발 가능 연면적의 2/3 이상이거나 준공 30년 미만이면서
+                절반 이상 지어진 것, 이전 조사보다 호가가 30% 미만으로 내려간 것(자릿수 누락).
+              </li>
               <li>용도지역·건축물 정보: 건축물대장, 필지 경계: 국토부 VWorld.</li>
               <li>지하철 노선·역: © OpenStreetMap contributors (ODbL), 자치구 경계: 통계청.</li>
               <li>
@@ -108,6 +119,7 @@ export default function AboutModal({
               </li>
               <li>
                 인허가(지구단위계획, 높이 제한, 주차), 기존 임차인, 명도 비용은 반영하지 않습니다.
+                준주거·준공업지역의 호텔은 관광진흥법상 사업계획 승인을 받는 관광숙박시설을 전제로 합니다.
               </li>
               <li>중개사 연락처 등 개인정보는 수집·표시하지 않습니다.</li>
             </ul>

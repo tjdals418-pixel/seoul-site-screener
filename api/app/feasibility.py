@@ -14,7 +14,7 @@ article의 noiAnnualM과 일치한다.
   - 보유 5년 = 공사 2년 + 안정화 3년 (build-stabilize-sell). 모두 override 가능.
   - NOI = GOP − 운영사 fee − 재산세·보험 − FF&E reserve (NOI/GOP ≈ 0.73).
   - Vehicle(SPC/펀드) 운용비: 총사업비 60bp/년 영업외 비용 (현금흐름에서만 차감).
-  - exit_cap 자치구 Tier 차등 (prime일수록 낮은 cap).
+  - exit_cap 입지 Tier 차등 (prime일수록 낮은 cap).
   - loan_rate 5.5% (LTV 60% 기준, 조정 가능).
   - Unlevered CF는 금융비(건설이자)를 제외, Levered CF는 PF draw + 이자 반영.
   - 토지 = equity, PF는 공사단계 draw down (Y0 토지매입 시 부채 0).
@@ -45,7 +45,7 @@ _DEFAULT_RAMP = (0.70, 0.85, 1.00)     # 호텔 운영 1·2·3년차 (3년 안�
 _DEFAULT_OFFICE_RAMP = (0.60, 0.90, 1.00)  # 오피스 임대 lease-up (준공 후 3년)
 _DEFAULT_CY = 2                         # 공사 2년
 
-# Exit Cap 기본값은 article의 exitCap (호텔: 자치구 ADR Tier별, 오피스: 권역별 —
+# Exit Cap 기본값은 article의 exitCap (호텔: 입지 보정 후 ADR Tier별, 오피스: 권역별 —
 # transforms.select_use가 채움). 없을 때만 fallback.
 _FALLBACK_EXIT_CAP = 0.060
 
@@ -59,7 +59,7 @@ class FeasibilityAssumptions:
     # None → base/Tier 자동 해소
     construction_years: int | None = None  # None → 공사 2년 base
     ramp_up: tuple[float, ...] | None = None  # None → (70/85/100) 3년 안정화
-    exit_cap: float | None = None          # None → 자치구 Tier별 exit cap
+    exit_cap: float | None = None          # None → 입지 Tier별 exit cap
 
     hold_years: int = 5                    # 보유 기간 (공사 2 + 안정화 3 = 5 base)
     discount_rate: float = 0.08            # NPV 할인율 (코어 Equity 요구수익률)
@@ -138,7 +138,7 @@ def _resolve_assumptions(
 
     - construction_years: None → 2년 (base)
     - ramp_up: None → (70/85/100) 3년 안정화 (base)
-    - exit_cap: None → 자치구 ADR Tier별 (prime일수록 낮음)
+    - exit_cap: None → 입지 Tier별 (prime일수록 낮음)
     Returns (construction_years, ramp_up, exit_cap).
     """
     is_office = article.get("devUse") == "office"

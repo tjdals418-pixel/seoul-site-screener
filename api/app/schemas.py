@@ -55,6 +55,8 @@ class Article(BaseModel):
     # 오피스
     officeClass: str | None = None
     officeMarket: str | None = None       # CBD / GBD / YBD / 기타
+    officeCore: str | None = None         # 권역 핵심 역 (반경 안일 때만)
+    officeCoreDistanceM: float | None = None   # 가장 가까운 권역 핵심 역까지 거리
     officeExclusivePyeong: float | None = None
     officeLeasablePyeong: float | None = None
     officeNoc10k: float | None = None     # NOC (만원/전용평/월)
@@ -82,6 +84,8 @@ class Article(BaseModel):
     adrTier: int | None = None
     adrMultiplier: float | None = None
     adrBase10k: float | None = None
+    hotelHub: str | None = None           # 숙박 수요 거점 역 (반경 안일 때만)
+    hotelHubDistanceM: float | None = None     # 가장 가까운 거점까지 거리
     occupancy: float | None = None
     fnbRatio: float | None = None
     gopRatio: float | None = None
@@ -125,6 +129,7 @@ class Article(BaseModel):
 
     # 식별 (외부 링크용 PNU)
     pnu: str | None = None
+    parcelAreaM2: float | None = None   # 소재 필지 면적 (대지지분 매물 판별용)
 
     # geo
     parcelPolygon: dict | None = None
@@ -272,6 +277,11 @@ class SimAssumptions(BaseModel):
     max_land_per_pyeong_M: float | None = Field(None, gt=0)
     min_bldg_per_pyeong_M: float | None = Field(None, ge=0)
     min_commercial_land_per_pyeong_M: float | None = Field(None, ge=0)
+
+    # 입지 보정
+    hotel_hub_radius_m: float | None = Field(None, ge=0, le=20_000)
+    hotel_off_hub_adr_step: float | None = Field(None, ge=0, le=0.5)
+    office_core_radius_m: float | None = Field(None, ge=0, le=20_000)
 
     # GOP → NOI 차감률
     mgmt_fee_base: float | None = Field(None, ge=0, le=0.2)
